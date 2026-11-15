@@ -1,17 +1,37 @@
+# The Matrix parts against a real Synapse, with an own E2EE client.
 name: e2e
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   synapse:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # renovate: datasource=docker depName=matrixdotorg/synapse
+      SYNAPSE_VERSION: v1.165.0
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with: { go-version-file: go.mod }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
       - name: Start Synapse
         run: |
+          image="matrixdotorg/synapse:${SYNAPSE_VERSION}"
           mkdir synapse
           docker run --rm -v "$PWD/synapse:/data" -e UID="$(id -u)" -e GID="$(id -g)" \
-            -e SYNAPSE_SERVER_NAME=localhost -e SYNAPSE_REPORT_STATS=no matrixdotorg/synapse:latest generate
+            -e SYNAPSE_SERVER_NAME=localhost -e SYNAPSE_REPORT_STATS=no "$image" generate
           cat >> synapse/homeserver.yaml <<'YAML'
           rc_message: { per_second: 1000, burst_count: 1000 }
           rc_login:
@@ -21,8 +41,8 @@ jobs:
           rc_joins:
             local: { per_second: 1000, burst_count: 1000 }
           YAML
-          docker run -d --name synapse -p 8008:8008 -v "$PWD/synapse:/data" -e UID="$(id -u)" -e GID="$(id -g)" matrixdotorg/synapse:latest
-          for i in $(seq 1 60); do curl -sf http://localhost:8008/_matrix/client/versions && break; sleep 2; done
+          docker run -d --name synapse -p 8008:8008 -v "$PWD/synapse:/data" -e UID="$(id -u)" -e GID="$(id -g)" "$image"
+          for _ in $(seq 1 60); do curl -sf http://localhost:8008/_matrix/client/versions && break; sleep 2; done
           echo "STELLWERK_E2E_SHARED_SECRET=$(grep '^registration_shared_secret:' synapse/homeserver.yaml | cut -d'"' -f2)" >> "$GITHUB_ENV"
       - name: End-to-end test
         env: { STELLWERK_E2E_HOMESERVER: "http://localhost:8008" }

@@ -97,42 +97,9 @@ func (u *RunCanary) Run(ctx context.Context) ports.CanaryResult {
 	ctx, cancel := context.WithTimeout(ctx, u.spec.Timeout)
 	defer cancel()
 	for i, d := range ds {
-		// Fallbacks are handled here, not by the queue: a canary that only
-		// arrived through a fallback is a failed canary.
-		fallbacks := d.Fallback
-		d.Fallback = nil
-		done, err := u.out.Enqueue(d)
-		if err == nil {
-			select {
-			case err = <-done:
-			case <-ctx.Done():
-				err = fmt.Errorf("not delivered within %s", u.spec.Timeout)
-			}
-		} else if u.audit.enabled() {
-			u.audit.store.Finish(entry.ID, i, u.clock.Now(), err)
-		}
-		if err != nil {
+		if problem := u.check(ctx, entry.ID, i, d, waits[i]); problem != "" {
 			res.OK = false
-			res.Problems = append(res.Problems, fmt.Sprintf("%s: %v", d.Destination, err))
-			if len(fallbacks) == 0 || len(u.spec.Alert) > 0 {
-				u.alarm(ds[i], fmt.Sprintf("could not be delivered: %v", err))
-			} else {
-				for _, fb := range fallbacks { // the canary with "could not deliver to ..." is the alarm
-					fb.Message.Loud, fb.Message.Priority = true, domain.PriorityHigh
-					if _, err := u.out.Enqueue(fb); err != nil {
-						u.log.Error("canary fallback could not be queued", "to", fb.Destination, "err", err)
-					}
-				}
-			}
-			continue
-		}
-		if waits[i] != nil {
-			if err := waits[i](ctx); err != nil {
-				res.OK = false
-				problem := fmt.Sprintf("%s: delivered, but not received back within %s", d.Destination, u.spec.Timeout)
-				res.Problems = append(res.Problems, problem)
-				u.alarm(ds[i], "was accepted by the server but did not arrive readable. Members may not be able to decrypt it, or the bot lost access.")
-			}
+			res.Problems = append(res.Problems, problem)
 		}
 	}
 	if res.OK {
@@ -144,6 +111,54 @@ func (u *RunCanary) Run(ctx context.Context) ports.CanaryResult {
 	u.last = &res
 	u.mu.Unlock()
 	return res
+}
+
+// check sends the canary to delivery i and returns the problem, or "".
+func (u *RunCanary) check(ctx context.Context, entryID string, i int, d domain.Delivery, wait func(context.Context) error) string {
+	if err := u.send(ctx, entryID, i, d); err != nil {
+		u.failed(d, err)
+		return fmt.Sprintf("%s: %v", d.Destination, err)
+	}
+	if wait == nil {
+		return ""
+	}
+	if err := wait(ctx); err != nil {
+		u.alarm(d, "was accepted by the server but did not arrive readable. Members may not be able to decrypt it, or the bot lost access.")
+		return fmt.Sprintf("%s: delivered, but not received back within %s", d.Destination, u.spec.Timeout)
+	}
+	return ""
+}
+
+// send delivers without fallbacks: arriving only through one fails the canary.
+func (u *RunCanary) send(ctx context.Context, entryID string, i int, d domain.Delivery) error {
+	d.Fallback = nil
+	done, err := u.out.Enqueue(d)
+	if err != nil {
+		if u.audit.enabled() {
+			u.audit.store.Finish(entryID, i, u.clock.Now(), err)
+		}
+		return err
+	}
+	select {
+	case err = <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("not delivered within %s", u.spec.Timeout)
+	}
+}
+
+// failed raises the alarm for a canary that could not be delivered.
+func (u *RunCanary) failed(d domain.Delivery, err error) {
+	if len(d.Fallback) == 0 || len(u.spec.Alert) > 0 {
+		u.alarm(d, fmt.Sprintf("could not be delivered: %v", err))
+		return
+	}
+	for _, fb := range d.Fallback { // the canary with "could not deliver to ..." is the alarm
+		fb.Message.Loud, fb.Message.Priority = true, domain.PriorityHigh
+		if _, err := u.out.Enqueue(fb); err != nil {
+			u.log.Error("canary fallback could not be queued", "to", fb.Destination, "err", err)
+		}
+	}
 }
 
 // alarm reports a failed check to canary.alert, or to the fallbacks of the

@@ -145,6 +145,47 @@ func (s *Server) handleFlows(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
+	resp.Sources = s.flowSources(&topo)
+
+	for _, d := range topo.Destinations {
+		resp.Destinations = append(resp.Destinations, flowDestination{Alias: d.Alias, Target: d.Target, Account: d.Account, Type: types[d.Target], Address: d.Address, Fallback: d.Fallback})
+	}
+	for i, r := range topo.Rules {
+		resp.Routes = append(resp.Routes, newFlowRoute(i, &r, topo.Engine))
+	}
+	for _, h := range topo.Heartbeats {
+		resp.Heartbeats = append(resp.Heartbeats, flowHeartbeat{
+			Name: h.Name, Source: h.Source, Labels: h.Labels,
+			Timeout: h.Timeout.String(), To: h.To, LastSeen: h.LastSeen.Format("2006-01-02T15:04:05.000Z07:00"), Missing: h.Missing,
+			Failed: h.Failed, Ping: s.pingTokens()[h.Name] != "",
+		})
+	}
+	for _, t := range topo.Templates {
+		resp.Templates = append(resp.Templates, flowTemplate(t))
+	}
+	writeJSON(w, resp)
+}
+
+// flowSources lists every source that is configured, routed, watched or has
+// stats, sorted by name.
+func (s *Server) flowSources(topo *ports.Topology) []flowSource {
+	var out []flowSource
+	for name := range s.flowSourceNames(topo) {
+		src, own, ok := s.sources().Resolve(name)
+		if !ok {
+			continue
+		}
+		auth := "own"
+		if !own {
+			auth = "fallback"
+		}
+		out = append(out, flowSource{Name: name, Kind: src.Kind, Endpoint: "/in/" + name, Auth: auth})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func (s *Server) flowSourceNames(topo *ports.Topology) map[string]bool {
 	names := map[string]bool{}
 	for _, n := range s.sources().Names() {
 		names[n] = true
@@ -162,59 +203,34 @@ func (s *Server) handleFlows(w http.ResponseWriter, _ *http.Request) {
 	for n := range topo.Stats.Sources {
 		names[n] = true
 	}
-	for name := range names {
-		src, own, ok := s.sources().Resolve(name)
-		if !ok {
-			continue
-		}
-		auth := "own"
-		if !own {
-			auth = "fallback"
-		}
-		resp.Sources = append(resp.Sources, flowSource{Name: name, Kind: src.Kind, Endpoint: "/in/" + name, Auth: auth})
-	}
-	sort.Slice(resp.Sources, func(i, j int) bool { return resp.Sources[i].Name < resp.Sources[j].Name })
+	return names
+}
 
-	for _, d := range topo.Destinations {
-		resp.Destinations = append(resp.Destinations, flowDestination{Alias: d.Alias, Target: d.Target, Account: d.Account, Type: types[d.Target], Address: d.Address, Fallback: d.Fallback})
+func newFlowRoute(i int, r *domain.Rule, engine string) flowRoute {
+	fr := flowRoute{
+		Index: i, Name: r.Name, Source: r.Match.Source, Status: r.Match.Status, Labels: r.Match.Labels,
+		Fields: r.Match.Fields, Expr: r.Expr, To: r.To, Template: r.Template, Loud: r.Loud || len(r.Mention) > 0,
+		Mention: r.Mention, Drop: r.Drop, Continue: r.Continue,
 	}
-	for i, r := range topo.Rules {
-		fr := flowRoute{
-			Index: i, Name: r.Name, Source: r.Match.Source, Status: r.Match.Status, Labels: r.Match.Labels,
-			Fields: r.Match.Fields, Expr: r.Expr, To: r.To, Template: r.Template, Loud: r.Loud || len(r.Mention) > 0,
-			Mention: r.Mention, Drop: r.Drop, Continue: r.Continue,
+	if r.Expr != "" {
+		fr.Engine = r.Engine
+		if fr.Engine == "" {
+			fr.Engine = engine
 		}
-		if r.Expr != "" {
-			fr.Engine = r.Engine
-			if fr.Engine == "" {
-				fr.Engine = topo.Engine
-			}
-		}
-		if !r.Drop {
-			fr.Priority = r.Priority
-			if fr.Priority == "" {
-				fr.Priority = map[bool]string{true: domain.PriorityHigh, false: domain.PriorityNormal}[fr.Loud]
-			}
-		}
-		if r.Digest > 0 {
-			fr.Digest = r.Digest.String()
-		}
-		if !r.Drop && fr.Template == "" {
-			fr.Template = "auto"
-		}
-		resp.Routes = append(resp.Routes, fr)
 	}
-	for _, h := range topo.Heartbeats {
-		resp.Heartbeats = append(resp.Heartbeats, flowHeartbeat{
-			Name: h.Name, Source: h.Source, Labels: h.Labels,
-			Timeout: h.Timeout.String(), To: h.To, LastSeen: h.LastSeen.Format("2006-01-02T15:04:05.000Z07:00"), Missing: h.Missing,
-			Failed: h.Failed, Ping: s.pingTokens()[h.Name] != "",
-		})
+	if !r.Drop {
+		fr.Priority = r.Priority
+		if fr.Priority == "" {
+			fr.Priority = map[bool]string{true: domain.PriorityHigh, false: domain.PriorityNormal}[fr.Loud]
+		}
 	}
-	for _, t := range topo.Templates {
-		resp.Templates = append(resp.Templates, flowTemplate(t))
+	if r.Digest > 0 {
+		fr.Digest = r.Digest.String()
 	}
-	writeJSON(w, resp)
+	if !r.Drop && fr.Template == "" {
+		fr.Template = "auto"
+	}
+	return fr
 }
 
 type simulateRequest struct {

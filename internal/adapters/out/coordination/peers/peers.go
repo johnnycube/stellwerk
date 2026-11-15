@@ -154,30 +154,35 @@ func (p *Peers) pollAll(ctx context.Context) {
 		wg.Add(1)
 		go func(pe *peer) {
 			defer wg.Done()
-			st, err := p.fetchState(ctx, pe)
-			p.mu.Lock()
-			defer p.mu.Unlock()
-			if err != nil {
-				if pe.lastErr != err.Error() {
-					p.log.Warn("peer unreachable", "peer", pe.id, "err", err)
-				}
-				pe.lastErr = err.Error()
-				return
-			}
-			if st.ID != pe.id {
-				pe.lastErr = fmt.Sprintf("peer at %s reports id %q, expected %q", pe.url, st.ID, pe.id)
-				return
-			}
-			if pe.lastErr != "" || pe.lastOK.IsZero() {
-				p.log.Info("peer up", "peer", pe.id)
-			}
-			pe.lastOK, pe.lastErr = time.Now(), ""
-			for name, at := range st.Heartbeats {
-				p.st.SetHeartbeat(name, at)
-			}
+			p.poll(ctx, pe)
 		}(pe)
 	}
 	wg.Wait()
+}
+
+// poll fetches one peer's state, records its health and merges its heartbeats.
+func (p *Peers) poll(ctx context.Context, pe *peer) {
+	st, err := p.fetchState(ctx, pe)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err != nil {
+		if pe.lastErr != err.Error() {
+			p.log.Warn("peer unreachable", "peer", pe.id, "err", err)
+		}
+		pe.lastErr = err.Error()
+		return
+	}
+	if st.ID != pe.id {
+		pe.lastErr = fmt.Sprintf("peer at %s reports id %q, expected %q", pe.url, st.ID, pe.id)
+		return
+	}
+	if pe.lastErr != "" || pe.lastOK.IsZero() {
+		p.log.Info("peer up", "peer", pe.id)
+	}
+	pe.lastOK, pe.lastErr = time.Now(), ""
+	for name, at := range st.Heartbeats {
+		p.st.SetHeartbeat(name, at)
+	}
 }
 
 type stateMsg struct {

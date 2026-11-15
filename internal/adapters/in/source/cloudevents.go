@@ -113,6 +113,23 @@ func (c *CloudEvents) event(source string, m map[string]any) (*domain.Event, err
 			return nil, fmt.Errorf("cloudevents: required attribute %q is missing", req)
 		}
 	}
+	labels := ceEventLabels(m)
+	ev := &domain.Event{
+		Source: source, Kind: "cloudevents", Labels: labels, Data: m,
+		Key: fmt.Sprint(m["source"]) + "#" + fmt.Sprint(m["id"]),
+	} // unique per the spec
+	if c.opts.StatusField != "" {
+		if v, ok := domain.Lookup(m, c.opts.StatusField); ok && v != nil {
+			ev.Status = fmt.Sprint(v)
+		}
+	} else if s, ok := labels["status"]; ok {
+		ev.Status = s
+	}
+	return ev, nil
+}
+
+// ceEventLabels are the context attributes plus scalar extension attributes.
+func ceEventLabels(m map[string]any) map[string]string {
 	labels := map[string]string{}
 	for _, k := range ceLabels {
 		if s, ok := m[k].(string); ok && s != "" {
@@ -132,16 +149,5 @@ func (c *CloudEvents) event(source string, m map[string]any) (*domain.Event, err
 			labels[k] = fmt.Sprint(v)
 		}
 	}
-	ev := &domain.Event{
-		Source: source, Kind: "cloudevents", Labels: labels, Data: m,
-		Key: fmt.Sprint(m["source"]) + "#" + fmt.Sprint(m["id"]),
-	} // unique per the spec
-	if c.opts.StatusField != "" {
-		if v, ok := domain.Lookup(m, c.opts.StatusField); ok && v != nil {
-			ev.Status = fmt.Sprint(v)
-		}
-	} else if s, ok := labels["status"]; ok {
-		ev.Status = s
-	}
-	return ev, nil
+	return labels
 }

@@ -131,11 +131,21 @@ func (e *AuditEntry) FinishDelivery(i int, at time.Time, err error) bool {
 	if e.Verdict != AuditPending {
 		return false
 	}
+	verdict, settled := e.settledVerdict()
+	if !settled {
+		return false
+	}
+	e.Verdict = verdict
+	return true
+}
+
+// settledVerdict is the verdict once no delivery is pending any more.
+func (e *AuditEntry) settledVerdict() (string, bool) {
 	rescued := map[int]bool{}
 	for _, d := range e.Deliveries {
 		switch {
 		case d.Status == "pending":
-			return false
+			return "", false
 		case d.Status == "sent" && d.FallbackFor != nil:
 			rescued[*d.FallbackFor] = true
 		}
@@ -146,13 +156,11 @@ func (e *AuditEntry) FinishDelivery(i int, at time.Time, err error) bool {
 			continue // a failed fallback counts through the delivery it stood in for
 		}
 		if !rescued[i] {
-			verdict = AuditFailed
-			break
+			return AuditFailed, true
 		}
 		verdict = AuditFallback
 	}
-	e.Verdict = verdict
-	return true
+	return verdict, true
 }
 
 // Matches reports whether the entry fits the query's filters.

@@ -344,12 +344,8 @@ func decode(b []byte) (*Config, error) {
 }
 
 func (c *Config) defaults() {
-	if c.Engine == "" {
-		c.Engine = "cel"
-	}
-	if c.Listen == "" {
-		c.Listen = ":8080"
-	}
+	setDefault(&c.Engine, "cel")
+	setDefault(&c.Listen, ":8080")
 	if c.NodeID == "" {
 		c.NodeID, _ = os.Hostname()
 	}
@@ -357,96 +353,102 @@ func (c *Config) defaults() {
 		def := "127.0.0.1:8081"
 		c.UI.Listen = &def
 	}
-	d := &c.Delivery
-	if d.Mode == "" {
-		d.Mode = "sync"
+	c.Delivery.defaults(c.NodeID)
+	setDefault(&c.Audit.Size, 1000)
+	setDefault(&c.Audit.PayloadMax, 16<<10)
+	setDefault(&c.Audit.FileMaxMB, 50)
+	setDefault(&c.Log.Level, "info")
+	setDefault(&c.Log.Format, "text")
+	setDefault(&c.SelfPing.Every, time.Minute)
+	setDefault(&c.Canary.Every, 24*time.Hour)
+	setDefault(&c.Canary.Timeout, 2*time.Minute)
+	for i := range c.Tests {
+		setDefault(&c.Tests[i].Name, fmt.Sprintf("test-%d", i+1))
 	}
-	if d.Timeout == 0 {
-		d.Timeout = 20 * time.Second
+	setDefault(&c.HA.Interval, 3*time.Second)
+	c.defaultAccounts()
+	for i := range c.Routes {
+		setDefault(&c.Routes[i].Name, fmt.Sprintf("route-%d", i+1))
 	}
-	if d.QueueSize == 0 {
-		d.QueueSize = 500
+	for i := range c.Heartbeats {
+		h := &c.Heartbeats[i]
+		setDefault(&h.Name, fmt.Sprintf("heartbeat-%d", i+1))
+		setDefault(&h.Timeout, 10*time.Minute)
 	}
-	if d.MaxRetries == 0 {
-		d.MaxRetries = 5
+}
+
+// setDefault sets *p to v if it is the zero value.
+func setDefault[T comparable](p *T, v T) {
+	var zero T
+	if *p == zero {
+		*p = v
 	}
-	if d.MaxBackoff == 0 {
-		d.MaxBackoff = time.Minute
-	}
-	if d.DrainTimeout == 0 {
-		d.DrainTimeout = 25 * time.Second
-	}
-	d.Spool = strings.ReplaceAll(d.Spool, "{node}", c.NodeID)
+}
+
+func (d *Delivery) defaults(nodeID string) {
+	setDefault(&d.Mode, "sync")
+	setDefault(&d.Timeout, 20*time.Second)
+	setDefault(&d.QueueSize, 500)
+	setDefault(&d.MaxRetries, 5)
+	setDefault(&d.MaxBackoff, time.Minute)
+	setDefault(&d.DrainTimeout, 25*time.Second)
+	d.Spool = strings.ReplaceAll(d.Spool, "{node}", nodeID)
 	if d.LateAfter == nil {
 		late := 10 * time.Minute
 		d.LateAfter = &late
 	}
-	if d.BreakerFailures == 0 {
-		d.BreakerFailures = 3
-	}
-	if d.BreakerCooldown == 0 {
-		d.BreakerCooldown = time.Minute
-	}
-	if c.Audit.Size == 0 {
-		c.Audit.Size = 1000
-	}
-	if c.Audit.PayloadMax == 0 {
-		c.Audit.PayloadMax = 16 << 10
-	}
-	if c.Audit.FileMaxMB == 0 {
-		c.Audit.FileMaxMB = 50
-	}
-	if c.Log.Level == "" {
-		c.Log.Level = "info"
-	}
-	if c.Log.Format == "" {
-		c.Log.Format = "text"
-	}
-	if c.SelfPing.Every == 0 {
-		c.SelfPing.Every = time.Minute
-	}
-	if c.Canary.Every == 0 {
-		c.Canary.Every = 24 * time.Hour
-	}
-	if c.Canary.Timeout == 0 {
-		c.Canary.Timeout = 2 * time.Minute
-	}
-	for i := range c.Tests {
-		if c.Tests[i].Name == "" {
-			c.Tests[i].Name = fmt.Sprintf("test-%d", i+1)
-		}
-	}
-	if c.HA.Interval == 0 {
-		c.HA.Interval = 3 * time.Second
-	}
+	setDefault(&d.BreakerFailures, 3)
+	setDefault(&d.BreakerCooldown, time.Minute)
+}
+
+// defaultAccounts fills a destination's account when its target has only one.
+func (c *Config) defaultAccounts() {
 	for alias, d := range c.Destinations {
-		if d.Account == "" {
-			if t, ok := c.Targets[d.Target]; ok && len(t.AccountNames()) == 1 {
-				d.Account = t.AccountNames()[0]
-				c.Destinations[alias] = d
-			}
+		if d.Account != "" {
+			continue
 		}
-	}
-	for i := range c.Routes {
-		if c.Routes[i].Name == "" {
-			c.Routes[i].Name = fmt.Sprintf("route-%d", i+1)
-		}
-	}
-	for i := range c.Heartbeats {
-		h := &c.Heartbeats[i]
-		if h.Name == "" {
-			h.Name = fmt.Sprintf("heartbeat-%d", i+1)
-		}
-		if h.Timeout == 0 {
-			h.Timeout = 10 * time.Minute
+		if t, ok := c.Targets[d.Target]; ok && len(t.AccountNames()) == 1 {
+			d.Account = t.AccountNames()[0]
+			c.Destinations[alias] = d
 		}
 	}
 }
+
+type addFunc func(f string, a ...any)
 
 func (c *Config) validate() error {
 	var errs []string
 	add := func(f string, a ...any) { errs = append(errs, fmt.Sprintf(f, a...)) }
 
+	c.validateSources(add)
+	c.validateTargets(add)
+	c.validateDestinations(add)
+	c.validateRoutes(add)
+	c.validateHeartbeats(add)
+	c.validateCanary(add)
+	if u := c.SelfPing.URL; u != "" && !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		add("self_ping.url must start with http:// or https://")
+	}
+	c.validateTests(add)
+	if !slices.Contains([]string{"debug", "info", "warn", "error"}, c.Log.Level) {
+		add("log.level must be debug, info, warn or error")
+	}
+	if c.Log.Format != "text" && c.Log.Format != "json" {
+		add("log.format must be text or json")
+	}
+	if c.Delivery.Mode != "sync" && c.Delivery.Mode != "async" {
+		add("delivery.mode must be sync or async")
+	}
+	if c.HA.Enabled {
+		c.validateHA(add)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("config:\n  %s", strings.Join(errs, "\n  "))
+	}
+	return nil
+}
+
+func (c *Config) validateSources(add addFunc) {
 	if len(c.Sources) == 0 {
 		add("sources: at least one source is required")
 	}
@@ -466,6 +468,9 @@ func (c *Config) validate() error {
 			add("sources.%s: %v", name, err)
 		}
 	}
+}
+
+func (c *Config) validateTargets(add addFunc) {
 	if len(c.Targets) == 0 {
 		add("targets: at least one target is required")
 	}
@@ -474,6 +479,9 @@ func (c *Config) validate() error {
 			add("targets.%s: type is required", name)
 		}
 	}
+}
+
+func (c *Config) validateDestinations(add addFunc) {
 	for alias, d := range c.Destinations {
 		t, ok := c.Targets[d.Target]
 		if !ok {
@@ -486,21 +494,30 @@ func (c *Config) validate() error {
 		case !slices.Contains(t.AccountNames(), d.Account):
 			add("destinations.%s: target %s has no account %q (has %v)", alias, d.Target, d.Account, t.AccountNames())
 		}
-		for _, fb := range d.Fallback {
-			if fb == alias {
-				add("destinations.%s: cannot be its own fallback", alias)
-			} else if _, ok := c.Destinations[fb]; !ok {
-				add("destinations.%s: unknown fallback %q", alias, fb)
-			}
+		c.validateFallbacks(add, alias, d.Fallback)
+	}
+}
+
+func (c *Config) validateFallbacks(add addFunc, alias string, fallback []string) {
+	for _, fb := range fallback {
+		if fb == alias {
+			add("destinations.%s: cannot be its own fallback", alias)
+		} else if _, ok := c.Destinations[fb]; !ok {
+			add("destinations.%s: unknown fallback %q", alias, fb)
 		}
 	}
-	checkTo := func(where string, to []string) {
-		for _, alias := range to {
-			if _, ok := c.Destinations[alias]; !ok {
-				add("%s: unknown destination %q", where, alias)
-			}
+}
+
+// checkTo reports aliases in to that are not destinations.
+func (c *Config) checkTo(add addFunc, where string, to []string) {
+	for _, alias := range to {
+		if _, ok := c.Destinations[alias]; !ok {
+			add("%s: unknown destination %q", where, alias)
 		}
 	}
+}
+
+func (c *Config) validateRoutes(add addFunc) {
 	if len(c.Routes) == 0 {
 		add("routes: at least one route is required")
 	}
@@ -513,7 +530,7 @@ func (c *Config) validate() error {
 		if !r.Drop && len(r.To) == 0 {
 			add("routes.%s: to is required unless drop: true", r.Name)
 		}
-		checkTo("routes."+r.Name, r.To)
+		c.checkTo(add, "routes."+r.Name, r.To)
 		if r.Digest < 0 || (r.Digest > 0 && r.Drop) {
 			add("routes.%s: digest must be positive and needs a route that sends", r.Name)
 		}
@@ -521,14 +538,20 @@ func (c *Config) validate() error {
 			add("routes.%s: priority must be one of %v", r.Name, domain.Priorities)
 		}
 	}
+}
+
+func (c *Config) validateHeartbeats(add addFunc) {
 	for _, h := range c.Heartbeats {
 		if (h.Source == "" && h.Token == "") || len(h.To) == 0 {
 			add("heartbeats.%s: to and a source or a token are required", h.Name)
 		}
-		checkTo("heartbeats."+h.Name, h.To)
+		c.checkTo(add, "heartbeats."+h.Name, h.To)
 	}
-	checkTo("canary.to", c.Canary.To)
-	checkTo("canary.alert", c.Canary.Alert)
+}
+
+func (c *Config) validateCanary(add addFunc) {
+	c.checkTo(add, "canary.to", c.Canary.To)
+	c.checkTo(add, "canary.alert", c.Canary.Alert)
 	if c.Canary.At != "" {
 		if _, err := time.Parse("15:04", c.Canary.At); err != nil {
 			add("canary.at must be a time of day like 09:00")
@@ -540,9 +563,9 @@ func (c *Config) validate() error {
 			add("canary.verify_with: %q must be a Matrix target/account", v)
 		}
 	}
-	if u := c.SelfPing.URL; u != "" && !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
-		add("self_ping.url must start with http:// or https://")
-	}
+}
+
+func (c *Config) validateTests(add addFunc) {
 	tests := map[string]bool{}
 	for _, tc := range c.Tests {
 		if tests[tc.Name] {
@@ -552,39 +575,27 @@ func (c *Config) validate() error {
 		if tc.Source == "" {
 			add("tests.%s: source is required", tc.Name)
 		}
-		checkTo("tests."+tc.Name+".expect.to", tc.Expect.To)
+		c.checkTo(add, "tests."+tc.Name+".expect.to", tc.Expect.To)
 	}
-	if !slices.Contains([]string{"debug", "info", "warn", "error"}, c.Log.Level) {
-		add("log.level must be debug, info, warn or error")
+}
+
+func (c *Config) validateHA(add addFunc) {
+	if c.HA.Secret == "" {
+		add("ha.secret is required when ha is enabled")
 	}
-	if c.Log.Format != "text" && c.Log.Format != "json" {
-		add("log.format must be text or json")
+	if len(c.HA.Peers) < 2 {
+		add("ha.peers needs at least two nodes")
 	}
-	if c.Delivery.Mode != "sync" && c.Delivery.Mode != "async" {
-		add("delivery.mode must be sync or async")
-	}
-	if c.HA.Enabled {
-		if c.HA.Secret == "" {
-			add("ha.secret is required when ha is enabled")
+	self := false
+	for _, p := range c.HA.Peers {
+		if p.ID == "" || p.URL == "" {
+			add("ha.peers: id and url are required")
 		}
-		if len(c.HA.Peers) < 2 {
-			add("ha.peers needs at least two nodes")
-		}
-		self := false
-		for _, p := range c.HA.Peers {
-			if p.ID == "" || p.URL == "" {
-				add("ha.peers: id and url are required")
-			}
-			self = self || p.ID == c.NodeID
-		}
-		if !self {
-			add("ha.peers must contain this node (node_id %q)", c.NodeID)
-		}
+		self = self || p.ID == c.NodeID
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("config:\n  %s", strings.Join(errs, "\n  "))
+	if !self {
+		add("ha.peers must contain this node (node_id %q)", c.NodeID)
 	}
-	return nil
 }
 
 // SourceFor returns the config for a source name, falling back to "*".

@@ -76,30 +76,18 @@ func (u *CheckHeartbeats) Check() []ports.HeartbeatChange {
 	now := u.clock.Now()
 	var changes []ports.HeartbeatChange
 	for _, s := range u.specs {
-		last, ok := u.coord.Heartbeat(s.Name)
-		if !ok || last.Before(u.started) {
-			last = maxTime(last, u.started)
-		}
-		silent := now.Sub(last)
+		silent := now.Sub(u.lastSeen(s.Name))
 		switch {
 		case silent > s.Timeout && !u.missing[s.Name]:
 			u.missing[s.Name] = true
 			if leader {
-				text := fmt.Sprintf("🚨 **Heartbeat missing**: no `%s` from `%s` for %s. Alerts from there are not reaching you.", s.Name, s.Source, silent.Round(time.Second))
-				if s.Source == "" {
-					text = fmt.Sprintf("🚨 **%s did not check in** for %s.", s.Name, silent.Round(time.Second))
-				}
-				u.send(s, "missing", text, true)
+				u.send(s, "missing", missingText(s, silent), true)
 			}
 			changes = append(changes, ports.HeartbeatChange{Name: s.Name, Missing: true, Sent: leader})
 		case silent <= s.Timeout && u.missing[s.Name]:
 			u.missing[s.Name] = false
 			if leader {
-				text := fmt.Sprintf("✅ **Heartbeat restored**: `%s` from `%s` is arriving again.", s.Name, s.Source)
-				if s.Source == "" {
-					text = fmt.Sprintf("✅ **%s checked in** again.", s.Name)
-				}
-				u.send(s, "restored", text, false)
+				u.send(s, "restored", restoredText(s), false)
 			}
 			changes = append(changes, ports.HeartbeatChange{Name: s.Name, Missing: false, Sent: leader})
 		}
@@ -107,28 +95,41 @@ func (u *CheckHeartbeats) Check() []ports.HeartbeatChange {
 	return changes
 }
 
+// lastSeen is the last heartbeat, but not before the use case started.
+func (u *CheckHeartbeats) lastSeen(name string) time.Time {
+	last, ok := u.coord.Heartbeat(name)
+	if !ok || last.Before(u.started) {
+		last = maxTime(last, u.started)
+	}
+	return last
+}
+
+func missingText(s domain.Heartbeat, silent time.Duration) string {
+	if s.Source == "" {
+		return fmt.Sprintf("🚨 **%s did not check in** for %s.", s.Name, silent.Round(time.Second))
+	}
+	return fmt.Sprintf("🚨 **Heartbeat missing**: no `%s` from `%s` for %s. Alerts from there are not reaching you.", s.Name, s.Source, silent.Round(time.Second))
+}
+
+func restoredText(s domain.Heartbeat) string {
+	if s.Source == "" {
+		return fmt.Sprintf("✅ **%s checked in** again.", s.Name)
+	}
+	return fmt.Sprintf("✅ **Heartbeat restored**: `%s` from `%s` is arriving again.", s.Name, s.Source)
+}
+
 func (u *CheckHeartbeats) send(s domain.Heartbeat, status, text string, loud bool) {
 	msg := domain.Message{Markdown: text, Loud: loud, Priority: domain.PriorityNormal, Source: s.Source, Route: "heartbeat:" + s.Name}
 	if loud {
 		msg.Priority = domain.PriorityUrgent // the alarm about missing alarms
-	}
-	if loud {
 		msg.Mentions = s.Mention
 	}
 	ds := make([]domain.Delivery, 0, len(s.To))
 	for _, alias := range s.To {
 		ds = append(ds, u.router.Delivery(msg.Route, alias, msg))
 	}
-	if u.silences != nil {
-		if sil, ok := u.silences.Find(&domain.Event{Source: s.Source, Kind: "heartbeat", Status: status, Labels: map[string]string{"heartbeat": s.Name}}); ok {
-			u.log.Info("heartbeat alarm silenced", "heartbeat", s.Name, "silence", sil.ID)
-			if u.audit.enabled() {
-				e := u.audit.newEntry("stellwerk", "heartbeat-alert", status, map[string]string{"heartbeat": s.Name, "source": s.Source}, nil)
-				e.Heartbeat, e.Verdict, e.SilencedBy, e.Reason = s.Name, ports.AuditSilenced, sil.ID, silencedReason(sil)
-				u.audit.store.Record(e)
-			}
-			return
-		}
+	if u.silenced(s, status) {
+		return
 	}
 	var entry ports.AuditEntry
 	if u.audit.enabled() {
@@ -145,6 +146,24 @@ func (u *CheckHeartbeats) send(s domain.Heartbeat, status, text string, loud boo
 			}
 		}
 	}
+}
+
+// silenced reports whether a silence mutes the alarm, and records that it did.
+func (u *CheckHeartbeats) silenced(s domain.Heartbeat, status string) bool {
+	if u.silences == nil {
+		return false
+	}
+	sil, ok := u.silences.Find(&domain.Event{Source: s.Source, Kind: "heartbeat", Status: status, Labels: map[string]string{"heartbeat": s.Name}})
+	if !ok {
+		return false
+	}
+	u.log.Info("heartbeat alarm silenced", "heartbeat", s.Name, "silence", sil.ID)
+	if u.audit.enabled() {
+		e := u.audit.newEntry("stellwerk", "heartbeat-alert", status, map[string]string{"heartbeat": s.Name, "source": s.Source}, nil)
+		e.Heartbeat, e.Verdict, e.SilencedBy, e.Reason = s.Name, ports.AuditSilenced, sil.ID, silencedReason(sil)
+		u.audit.store.Record(e)
+	}
+	return true
 }
 
 // Ping records a run of the named job. Pings are not tied to the leader:

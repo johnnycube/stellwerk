@@ -66,49 +66,22 @@ func OptionsFromEnv(file string, dirs []string, environ []string) LoadOptions {
 // LoadFrom merges all sources, then decodes strictly and validates.
 // Warnings are for things that were ignored, the caller should log them.
 func LoadFrom(o LoadOptions) (*Config, []string, error) {
-	var warnings []string
 	root := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-
-	if o.File != "" {
-		raw, err := os.ReadFile(o.File)
-		switch {
-		case err == nil:
-			n, err := parseYAML([]byte(os.Expand(string(raw), lookupIn(o.Environ))), o.File)
-			if err != nil {
-				return nil, warnings, err
-			}
-			mergeNode(root, n)
-		case os.IsNotExist(err) && !o.FileRequired:
-			// fine, everything may come from dirs and env
-		default:
-			return nil, warnings, fmt.Errorf("config: %w", err)
-		}
+	if err := mergeFile(root, o); err != nil {
+		return nil, nil, err
 	}
-
-	dirs := make([]dirFiles, 0, len(o.Dirs))
-	for _, dir := range o.Dirs {
-		d, err := scanDir(dir)
-		if err != nil {
-			return nil, warnings, err
-		}
-		dirs = append(dirs, d)
+	dirs, err := scanDirs(o.Dirs)
+	if err != nil {
+		return nil, nil, err
 	}
 	for _, d := range dirs { // layer 1: YAML fragments
 		if err := d.mergeYAML(root); err != nil {
-			return nil, warnings, err
+			return nil, nil, err
 		}
 	}
-	w, err := applyEnv(root, o.Environ) // layer 2
-	warnings = append(warnings, w...)
+	warnings, err := applyOverrides(root, o.Environ, dirs)
 	if err != nil {
 		return nil, warnings, err
-	}
-	for _, d := range dirs { // layer 3: secret files win
-		w, err := d.applyValues(root)
-		warnings = append(warnings, w...)
-		if err != nil {
-			return nil, warnings, err
-		}
 	}
 
 	out, err := yaml.Marshal(root)
@@ -117,6 +90,55 @@ func LoadFrom(o LoadOptions) (*Config, []string, error) {
 	}
 	cfg, err := decode(out)
 	return cfg, warnings, err
+}
+
+// mergeFile merges the config file, with ${VAR} expanded, into root.
+func mergeFile(root *yaml.Node, o LoadOptions) error {
+	if o.File == "" {
+		return nil
+	}
+	raw, err := os.ReadFile(o.File)
+	switch {
+	case err == nil:
+		n, err := parseYAML([]byte(os.Expand(string(raw), lookupIn(o.Environ))), o.File)
+		if err != nil {
+			return err
+		}
+		mergeNode(root, n)
+	case os.IsNotExist(err) && !o.FileRequired:
+		// fine, everything may come from dirs and env
+	default:
+		return fmt.Errorf("config: %w", err)
+	}
+	return nil
+}
+
+func scanDirs(paths []string) ([]dirFiles, error) {
+	dirs := make([]dirFiles, 0, len(paths))
+	for _, dir := range paths {
+		d, err := scanDir(dir)
+		if err != nil {
+			return nil, err
+		}
+		dirs = append(dirs, d)
+	}
+	return dirs, nil
+}
+
+// applyOverrides applies the environment, then the secret files, which win.
+func applyOverrides(root *yaml.Node, environ []string, dirs []dirFiles) ([]string, error) {
+	warnings, err := applyEnv(root, environ)
+	if err != nil {
+		return warnings, err
+	}
+	for _, d := range dirs {
+		w, err := d.applyValues(root)
+		warnings = append(warnings, w...)
+		if err != nil {
+			return warnings, err
+		}
+	}
+	return warnings, nil
 }
 
 func parseYAML(b []byte, where string) (*yaml.Node, error) {
@@ -223,22 +245,14 @@ func applyEnv(root *yaml.Node, environ []string) ([]string, error) {
 		if !strings.HasPrefix(k, EnvPrefix) || k == EnvFile || k == EnvDirs {
 			continue
 		}
-		name, value := strings.TrimPrefix(k, EnvPrefix), env[k]
-		if strings.HasSuffix(name, "_FILE") {
-			b, err := os.ReadFile(value)
-			if err != nil {
-				return warnings, fmt.Errorf("config %s: %w", k, err)
-			}
-			name, value = strings.TrimSuffix(name, "_FILE"), strings.TrimRight(string(b), "\r\n")
+		name, value, err := envEntry(k, env[k])
+		if err != nil {
+			return warnings, err
 		}
 		path := strings.Split(strings.ToLower(name), "__")
 		if !topLevelKey(path[0]) {
-			if !kubernetesServiceLink(name) {
-				hint := ""
-				if strings.Contains(path[0], "_") {
-					hint = fmt.Sprintf(" (levels are separated by __, e.g. %s%s)", EnvPrefix, strings.Replace(name, "_", "__", 1))
-				}
-				warnings = append(warnings, fmt.Sprintf("ignored %s: not a config key%s", k, hint))
+			if w := ignoredEnv(k, name, path[0]); w != "" {
+				warnings = append(warnings, w)
 			}
 			continue
 		}
@@ -247,6 +261,33 @@ func applyEnv(root *yaml.Node, environ []string) ([]string, error) {
 		}
 	}
 	return warnings, nil
+}
+
+// envEntry returns the key name without prefix and the value, read from the
+// file for a _FILE variable.
+func envEntry(k, value string) (string, string, error) {
+	name := strings.TrimPrefix(k, EnvPrefix)
+	if !strings.HasSuffix(name, "_FILE") {
+		return name, value, nil
+	}
+	b, err := os.ReadFile(value)
+	if err != nil {
+		return "", "", fmt.Errorf("config %s: %w", k, err)
+	}
+	return strings.TrimSuffix(name, "_FILE"), strings.TrimRight(string(b), "\r\n"), nil
+}
+
+// ignoredEnv is the warning for a variable that is not a config key, empty
+// for Kubernetes service links.
+func ignoredEnv(k, name, top string) string {
+	if kubernetesServiceLink(name) {
+		return ""
+	}
+	hint := ""
+	if strings.Contains(top, "_") {
+		hint = fmt.Sprintf(" (levels are separated by __, e.g. %s%s)", EnvPrefix, strings.Replace(name, "_", "__", 1))
+	}
+	return fmt.Sprintf("ignored %s: not a config key%s", k, hint)
 }
 
 // kubernetesServiceLink matches variables Kubernetes injects for a Service
@@ -296,43 +337,60 @@ func setPath(node *yaml.Node, path []string, value *yaml.Node) error {
 		if seg == AnyKey {
 			seg = "*"
 		}
-		last := i == len(path)-1
-		switch cur.Kind {
-		case yaml.MappingNode:
-			idx := findKey(cur, seg)
-			if idx < 0 {
-				cur.Content = append(cur.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: seg}, newChild(path, i))
-				idx = len(cur.Content) - 2
-			}
-			if last {
-				cur.Content[idx+1] = value
-				return nil
-			}
-			cur = cur.Content[idx+1]
-		case yaml.SequenceNode:
-			n, err := strconv.Atoi(seg)
-			if err != nil || n < 0 || n > len(cur.Content) {
-				return fmt.Errorf("%q: list index %q out of range (have %d entries)", strings.Join(path[:i], "."), seg, len(cur.Content))
-			}
-			if n == len(cur.Content) {
-				cur.Content = append(cur.Content, newChild(path, i))
-			}
-			if last {
-				cur.Content[n] = value
-				return nil
-			}
-			cur = cur.Content[n]
-		case yaml.ScalarNode:
-			if cur.Value != "" || cur.Tag == "!!str" {
-				return fmt.Errorf("%q is a value, cannot set %q below it", strings.Join(path[:i], "."), seg)
-			}
-			*cur = *newChild(path, i-1) // empty "key:" in YAML, turn it into a container
-			return setPath(cur, path[i:], value)
-		default:
-			return fmt.Errorf("cannot set %q", strings.Join(path, "."))
+		next, err := setStep(cur, path, i, seg, value)
+		if err != nil || next == nil {
+			return err
 		}
+		cur = next
 	}
 	return nil
+}
+
+// setStep descends from cur into path[i], or sets value there if it is the
+// last segment. A nil node means done.
+func setStep(cur *yaml.Node, path []string, i int, seg string, value *yaml.Node) (*yaml.Node, error) {
+	switch cur.Kind {
+	case yaml.MappingNode:
+		return setInMapping(cur, path, i, seg, value), nil
+	case yaml.SequenceNode:
+		return setInSequence(cur, path, i, seg, value)
+	case yaml.ScalarNode:
+		if cur.Value != "" || cur.Tag == "!!str" {
+			return nil, fmt.Errorf("%q is a value, cannot set %q below it", strings.Join(path[:i], "."), seg)
+		}
+		*cur = *newChild(path, i-1) // empty "key:" in YAML, turn it into a container
+		return nil, setPath(cur, path[i:], value)
+	default:
+		return nil, fmt.Errorf("cannot set %q", strings.Join(path, "."))
+	}
+}
+
+func setInMapping(cur *yaml.Node, path []string, i int, seg string, value *yaml.Node) *yaml.Node {
+	idx := findKey(cur, seg)
+	if idx < 0 {
+		cur.Content = append(cur.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: seg}, newChild(path, i))
+		idx = len(cur.Content) - 2
+	}
+	if i == len(path)-1 {
+		cur.Content[idx+1] = value
+		return nil
+	}
+	return cur.Content[idx+1]
+}
+
+func setInSequence(cur *yaml.Node, path []string, i int, seg string, value *yaml.Node) (*yaml.Node, error) {
+	n, err := strconv.Atoi(seg)
+	if err != nil || n < 0 || n > len(cur.Content) {
+		return nil, fmt.Errorf("%q: list index %q out of range (have %d entries)", strings.Join(path[:i], "."), seg, len(cur.Content))
+	}
+	if n == len(cur.Content) {
+		cur.Content = append(cur.Content, newChild(path, i))
+	}
+	if i == len(path)-1 {
+		cur.Content[n] = value
+		return nil, nil
+	}
+	return cur.Content[n], nil
 }
 
 // newChild creates the container for path[i+1]: a list if it is a number.

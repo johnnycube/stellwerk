@@ -132,22 +132,41 @@ func Build(cfg *config.Config, log *slog.Logger) (*App, error) {
 // Connect creates one sender per target account (logs in to Matrix etc.)
 // and wires the services.
 func (a *App) Connect(ctx context.Context) error {
-	if c := a.Cfg.Audit; a.Audit != nil {
-		if c.File != "" {
-			f, err := audit.NewFile(c.File, int64(c.FileMaxMB)<<20, a.Log)
-			if err != nil {
-				return err
-			}
-			a.auditFile = f
-			a.Audit.AddSink(f)
-		}
-		if c.Log {
-			a.Audit.AddSink(audit.Log{L: a.Log})
-		}
+	if err := a.openAuditSinks(); err != nil {
+		return err
 	}
 	if err := a.openSpool(); err != nil {
 		return err
 	}
+	senders, err := a.connectTargets(ctx)
+	if err != nil {
+		return err
+	}
+	a.Wire(senders)
+	return nil
+}
+
+func (a *App) openAuditSinks() error {
+	c := a.Cfg.Audit
+	if a.Audit == nil {
+		return nil
+	}
+	if c.File != "" {
+		f, err := audit.NewFile(c.File, int64(c.FileMaxMB)<<20, a.Log)
+		if err != nil {
+			return err
+		}
+		a.auditFile = f
+		a.Audit.AddSink(f)
+	}
+	if c.Log {
+		a.Audit.AddSink(audit.Log{L: a.Log})
+	}
+	return nil
+}
+
+// connectTargets creates every target account in name order and fills a.Endpoints.
+func (a *App) connectTargets(ctx context.Context) (map[string]ports.Sender, error) {
 	a.Endpoints = map[string]target.Target{}
 	senders := map[string]ports.Sender{}
 	names := make([]string, 0, len(a.Cfg.Targets))
@@ -161,19 +180,18 @@ func (a *App) Connect(ctx context.Context) error {
 			own := tc.Accounts[acc]
 			settings, err := target.MergeSettings(&tc.Settings, &own)
 			if err != nil {
-				return fmt.Errorf("targets.%s.accounts.%s: %w", name, acc, err)
+				return nil, fmt.Errorf("targets.%s.accounts.%s: %w", name, acc, err)
 			}
 			t, err := target.New(ctx, tc.Type, target.Env{Target: name, Account: acc, NodeID: a.Cfg.NodeID, Log: a.Log, Commands: a.chatCommand}, settings)
 			if err != nil {
-				return fmt.Errorf("targets.%s.accounts.%s: %w", name, acc, err)
+				return nil, fmt.Errorf("targets.%s.accounts.%s: %w", name, acc, err)
 			}
 			ep := domain.EndpointID(name, acc)
 			a.Endpoints[ep] = t
 			senders[ep] = t
 		}
 	}
-	a.Wire(senders)
-	return nil
+	return senders, nil
 }
 
 // compiled is everything a reload can replace: sources, rules, templates,
@@ -329,17 +347,7 @@ func (a *App) Wire(senders map[string]ports.Sender) {
 	a.Simulate = usecase.NewSimulateEvents(a.Router, s.Heartbeats).WithSilences(a.Silences)
 	a.Heartbeats = usecase.NewCheckHeartbeats(s.Heartbeats, a.Coord, a.Router, a.Deliver, a.Clock, a.Log).WithSilences(a.Silences)
 	a.Describe = usecase.NewDescribeTopology(s, a.Renderer, a.Heartbeats, a.Coord, a.Stats).WithSilences(a.Silences)
-	var readAudit ports.ReadAudit
-	if a.Audit != nil {
-		policy := usecase.AuditPolicy{Payload: a.Cfg.Audit.KeepPayload(), PayloadMax: a.Cfg.Audit.PayloadMax}
-		a.Deliver.WithAudit(a.Audit, a.Clock, a.Cfg.NodeID)
-		a.Ingest.WithAudit(a.Audit, policy)
-		a.Heartbeats.WithAudit(a.Audit, policy)
-		a.ReadAudit = usecase.NewReadAudit(a.Audit)
-		readAudit = a.ReadAudit
-		a.Digests.WithAudit(a.Audit)
-		a.Resend = usecase.NewResendAudit(a.Audit, a.Deliver, a.Router, a.Clock, a.Cfg.NodeID)
-	}
+	readAudit := a.wireAudit()
 	var resend ports.ResendAudit
 	if a.Resend != nil {
 		resend = a.Resend
@@ -352,26 +360,7 @@ func (a *App) Wire(senders map[string]ports.Sender) {
 		OnRateLimited: a.Metrics.RateLimited,
 	}
 	a.Scheduler = &scheduler.Heartbeats{UseCase: a.Heartbeats, Interval: 15 * time.Second, Log: a.Log}
-	if c := a.Cfg.Canary; len(c.To) > 0 {
-		var rx ports.Receiver
-		if c.VerifyWith != "" {
-			ep := c.VerifyWith
-			if !strings.Contains(ep, "/") {
-				ep = domain.EndpointID(ep, a.Cfg.Targets[ep].AccountNames()[0])
-			}
-			if r, ok := a.Endpoints[ep].(ports.Receiver); ok {
-				rx = r
-			} else if a.Endpoints != nil {
-				a.Log.Warn("canary.verify_with cannot read messages back, only delivery is checked", "endpoint", ep)
-			}
-		}
-		a.Canary = usecase.NewRunCanary(usecase.CanarySpec{To: c.To, Alert: c.Alert, Timeout: c.Timeout}, a.Router, a.Deliver, rx, a.Clock, a.Log)
-		if a.Audit != nil {
-			a.Canary.WithAudit(a.Audit, a.Cfg.NodeID)
-		}
-		a.Canaries = &scheduler.Canary{UseCase: a.Canary, Every: c.Every, At: c.At, Log: a.Log}
-		a.HTTP.Canary = a.Canary
-	}
+	a.wireCanary()
 	a.Chat = &chatops.Handler{Silences: a.Silences, Describe: a.Describe, Canary: a.canaryPort(), Leader: a.Coord.IsLeader}
 	if p := a.Cfg.SelfPing; p.URL != "" {
 		a.SelfPing = &scheduler.SelfPing{URL: p.URL, FailURL: p.FailURL, Every: p.Every, Health: a.health, Log: a.Log}
@@ -380,6 +369,52 @@ func (a *App) Wire(senders map[string]ports.Sender) {
 	if a.coordHandler != nil {
 		a.HTTP.Mounts["/cluster/"] = a.coordHandler
 	}
+}
+
+// wireAudit attaches the audit log to the use cases, nil without one.
+func (a *App) wireAudit() ports.ReadAudit {
+	if a.Audit == nil {
+		return nil
+	}
+	policy := usecase.AuditPolicy{Payload: a.Cfg.Audit.KeepPayload(), PayloadMax: a.Cfg.Audit.PayloadMax}
+	a.Deliver.WithAudit(a.Audit, a.Clock, a.Cfg.NodeID)
+	a.Ingest.WithAudit(a.Audit, policy)
+	a.Heartbeats.WithAudit(a.Audit, policy)
+	a.ReadAudit = usecase.NewReadAudit(a.Audit)
+	a.Digests.WithAudit(a.Audit)
+	a.Resend = usecase.NewResendAudit(a.Audit, a.Deliver, a.Router, a.Clock, a.Cfg.NodeID)
+	return a.ReadAudit
+}
+
+func (a *App) wireCanary() {
+	c := a.Cfg.Canary
+	if len(c.To) == 0 {
+		return
+	}
+	a.Canary = usecase.NewRunCanary(usecase.CanarySpec{To: c.To, Alert: c.Alert, Timeout: c.Timeout}, a.Router, a.Deliver, a.canaryReceiver(c.VerifyWith), a.Clock, a.Log)
+	if a.Audit != nil {
+		a.Canary.WithAudit(a.Audit, a.Cfg.NodeID)
+	}
+	a.Canaries = &scheduler.Canary{UseCase: a.Canary, Every: c.Every, At: c.At, Log: a.Log}
+	a.HTTP.Canary = a.Canary
+}
+
+// canaryReceiver is the endpoint the canary reads its message back from, if it can.
+func (a *App) canaryReceiver(verifyWith string) ports.Receiver {
+	if verifyWith == "" {
+		return nil
+	}
+	ep := verifyWith
+	if !strings.Contains(ep, "/") {
+		ep = domain.EndpointID(ep, a.Cfg.Targets[ep].AccountNames()[0])
+	}
+	if r, ok := a.Endpoints[ep].(ports.Receiver); ok {
+		return r
+	}
+	if a.Endpoints != nil {
+		a.Log.Warn("canary.verify_with cannot read messages back, only delivery is checked", "endpoint", ep)
+	}
+	return nil
 }
 
 func (a *App) Ready() bool {

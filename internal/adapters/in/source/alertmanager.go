@@ -58,18 +58,27 @@ func (a *Alertmanager) Decode(in Input) ([]*domain.Event, error) {
 		return nil, err
 	}
 	if !a.opts.SplitAlerts || len(p.Alerts) <= 1 {
-		labels := map[string]string{}
-		for k, v := range p.CommonLabels {
-			labels[k] = v
-		}
-		for k, v := range p.GroupLabels {
-			labels[k] = v
-		}
-		labels["receiver"] = p.Receiver
-		return []*domain.Event{{Source: in.Source, Kind: "alertmanager", Status: p.Status, Labels: labels, Data: data}}, nil
+		return []*domain.Event{amGroupEvent(in.Source, &p, data)}, nil
 	}
-	// Split: each event gets a payload with just its alert, so the
-	// alertmanager template and field matchers keep working.
+	return amSplitEvents(in.Source, &p, data), nil
+}
+
+// amGroupEvent is one event for the whole group, labelled with its common and group labels.
+func amGroupEvent(source string, p *amPayload, data any) *domain.Event {
+	labels := map[string]string{}
+	for k, v := range p.CommonLabels {
+		labels[k] = v
+	}
+	for k, v := range p.GroupLabels {
+		labels[k] = v
+	}
+	labels["receiver"] = p.Receiver
+	return &domain.Event{Source: source, Kind: "alertmanager", Status: p.Status, Labels: labels, Data: data}
+}
+
+// amSplitEvents gives each alert an event whose payload holds just that
+// alert, so the alertmanager template and field matchers keep working.
+func amSplitEvents(source string, p *amPayload, data any) []*domain.Event {
 	root, _ := data.(map[string]any)
 	alerts, _ := root["alerts"].([]any)
 	var out []*domain.Event
@@ -88,9 +97,9 @@ func (a *Alertmanager) Decode(in Input) ([]*domain.Event, error) {
 		if al.Fingerprint != "" {
 			key = strings.Join([]string{"am", al.Fingerprint, al.Status}, ":")
 		}
-		out = append(out, &domain.Event{Source: in.Source, Kind: "alertmanager", Status: al.Status, Labels: labels, Data: single, Key: key})
+		out = append(out, &domain.Event{Source: source, Kind: "alertmanager", Status: al.Status, Labels: labels, Data: single, Key: key})
 	}
-	return out, nil
+	return out
 }
 
 const alertmanagerSample = `{

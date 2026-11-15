@@ -35,24 +35,13 @@ const (
 )
 
 func Run(ctx context.Context, o Options, out io.Writer, log *slog.Logger) error {
-	if o.Homeserver == "" || o.UserID == "" || o.Password == "" {
-		return fmt.Errorf("init: homeserver, user and password are required")
-	}
-	if len(o.Invite) == 0 {
-		return fmt.Errorf("init: give at least one -invite, the person who gets the alerts")
-	}
-	if o.RoomName == "" {
-		o.RoomName = "stellwerk"
-	}
-	if o.Dir == "" {
-		o.Dir = "."
+	if err := o.withDefaults(); err != nil {
+		return err
 	}
 	cfgPath, envPath := filepath.Join(o.Dir, ConfigFile), filepath.Join(o.Dir, EnvFile)
 	if !o.Force {
-		for _, p := range []string{cfgPath, envPath} {
-			if _, err := os.Stat(p); err == nil {
-				return fmt.Errorf("init: %s exists, use -force to overwrite", p)
-			}
+		if err := refuseExisting(cfgPath, envPath); err != nil {
+			return err
 		}
 	}
 	data := filepath.Join(o.Dir, "data")
@@ -86,20 +75,55 @@ func Run(ctx context.Context, o Options, out io.Writer, log *slog.Logger) error 
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o600); err != nil {
 		return err
 	}
+	if err := writeEnv(envPath, secrets); err != nil {
+		return err
+	}
+	printDone(out, res, o.Invite, cfgPath, envPath)
+	return nil
+}
+
+// withDefaults checks the required options and fills in the rest.
+func (o *Options) withDefaults() error {
+	if o.Homeserver == "" || o.UserID == "" || o.Password == "" {
+		return fmt.Errorf("init: homeserver, user and password are required")
+	}
+	if len(o.Invite) == 0 {
+		return fmt.Errorf("init: give at least one -invite, the person who gets the alerts")
+	}
+	if o.RoomName == "" {
+		o.RoomName = "stellwerk"
+	}
+	if o.Dir == "" {
+		o.Dir = "."
+	}
+	return nil
+}
+
+func refuseExisting(paths ...string) error {
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return fmt.Errorf("init: %s exists, use -force to overwrite", p)
+		}
+	}
+	return nil
+}
+
+func writeEnv(path string, secrets map[string]string) error {
 	var env strings.Builder
 	env.WriteString("# Secrets for stellwerk.yaml. Keep this file private. Load it with: set -a; . ./stellwerk.env; set +a\n")
 	for _, k := range []string{"MATRIX_PASSWORD", "MATRIX_PICKLE_KEY", "MATRIX_RECOVERY_KEY", "TOKEN_ALERTMANAGER", "TOKEN_DEFAULT"} {
 		fmt.Fprintf(&env, "%s=%s\n", k, shellQuote(secrets[k]))
 	}
-	if err := os.WriteFile(envPath, []byte(env.String()), 0o600); err != nil {
-		return err
-	}
+	return os.WriteFile(path, []byte(env.String()), 0o600)
+}
+
+func printDone(out io.Writer, res matrix.SetupResult, invite []string, cfgPath, envPath string) {
 	fmt.Fprintf(out, `
 Done.
   room        %s (invited: %s)
   config      %s
   secrets     %s (mode 0600, never commit it)
-`, res.RoomID, strings.Join(o.Invite, ", "), cfgPath, envPath)
+`, res.RoomID, strings.Join(invite, ", "), cfgPath, envPath)
 	if res.Warning != "" {
 		fmt.Fprintf(out, "  warning     %s\n", res.Warning)
 	}
@@ -111,7 +135,6 @@ Next:
   4. Point Alertmanager at http://<host>:8080/in/alertmanager with the token TOKEN_ALERTMANAGER,
      or try it: stellwerk send -source test -token "$TOKEN_DEFAULT" "hello"
 `, envPath, cfgPath)
-	return nil
 }
 
 const template = `# Written by "stellwerk init". Secrets come from stellwerk.env.

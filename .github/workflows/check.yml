@@ -1,7 +1,4 @@
-# One file for GitHub and Gitea:
-# Gitea Actions reads .github/workflows/ too, and both forges set github.server_url.
-# Actions are pinned to commit SHAs; `pinact run -u` updates them
-# (Renovate keeps the pins current via renovate.json).
+# The definition of green: `make check`, the same target the pre-push hook runs.
 name: check
 on:
   push:
@@ -24,49 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0          # diff-cover and gitleaks need history
+          fetch-depth: 0          # gitleaks scans the history
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          cache: true
-      - name: Go tools (a `make tools` target is the usual home for these pins)
-        env:
-          # renovate: datasource=go depName=github.com/golangci/golangci-lint/v2
-          GOLANGCI_VERSION: v2.15.0
-          # renovate: datasource=go depName=golang.org/x/vuln
-          GOVULNCHECK_VERSION: v1.9.0
-        run: |
-          go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_VERSION}"
-          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
-      - name: Shared tools (gitleaks, diff-cover), pinned and checksum-verified
-        env:
-          # renovate: datasource=github-releases depName=gitleaks/gitleaks
-          GITLEAKS_VERSION: v8.30.1
-          # renovate: datasource=pypi depName=diff-cover
-          DIFF_COVER_VERSION: 11.0.2
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          v=${GITLEAKS_VERSION#v}
-          base="https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}"
-          curl -sSfLO "${base}/gitleaks_${v}_linux_x64.tar.gz"
-          curl -sSfL "${base}/gitleaks_${v}_checksums.txt" | grep " gitleaks_${v}_linux_x64.tar.gz$" | sha256sum -c -
-          tar -xzf "gitleaks_${v}_linux_x64.tar.gz" -C "$HOME/.local/bin" gitleaks
-          rm "gitleaks_${v}_linux_x64.tar.gz"
-          pipx install "diff-cover==${DIFF_COVER_VERSION}"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-      - name: fleetlint (the check target runs it), pinned and checksum-verified
-        env:
-          # renovate: datasource=github-releases depName=fleetlint/fleetlint
-          FLEETLINT_VERSION: v0.10.2
-        run: |
-          set -euo pipefail
-          v=${FLEETLINT_VERSION#v}
-          base="https://github.com/fleetlint/fleetlint/releases/download/${FLEETLINT_VERSION}"
-          curl -sSfLO "${base}/fleetlint_${v}_linux_amd64.tar.gz"
-          curl -sSfL "${base}/checksums.txt" | grep " fleetlint_${v}_linux_amd64.tar.gz$" | sha256sum -c -
-          tar -xzf "fleetlint_${v}_linux_amd64.tar.gz" -C "$HOME/.local/bin" fleetlint
-          rm "fleetlint_${v}_linux_amd64.tar.gz"
+      - run: make tools
       - run: make check
+
+  mutate:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: make tools
+      - run: make mutate

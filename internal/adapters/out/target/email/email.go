@@ -111,19 +111,9 @@ func (e *Email) send(ctx context.Context, address string, msg domain.Message) er
 	if err != nil {
 		return ports.Permanent(err)
 	}
-	deadline := time.Now().Add(e.s.Timeout)
-	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
-		deadline = d
-	}
-	addr := net.JoinHostPort(e.s.Host, strconv.Itoa(e.s.Port))
+	deadline := e.deadline(ctx)
 	tlsCfg := &tls.Config{ServerName: e.s.Host, InsecureSkipVerify: e.s.InsecureSkipVerify, MinVersion: tls.VersionTLS12} //nolint:gosec // opt-in setting for relays with self-signed certificates
-	dialer := &net.Dialer{Deadline: deadline}
-	var conn net.Conn
-	if e.s.TLS == "implicit" {
-		conn, err = (&tls.Dialer{NetDialer: dialer, Config: tlsCfg}).DialContext(ctx, "tcp", addr)
-	} else {
-		conn, err = dialer.DialContext(ctx, "tcp", addr)
-	}
+	conn, err := e.dial(ctx, deadline, tlsCfg)
 	if err != nil {
 		return fmt.Errorf("smtp connect: %w", err)
 	}
@@ -136,6 +126,32 @@ func (e *Email) send(ctx context.Context, address string, msg domain.Message) er
 		return fmt.Errorf("smtp: %w", err)
 	}
 	defer c.Close()
+	if err := e.handshake(c, tlsCfg); err != nil {
+		return err
+	}
+	return e.transmit(c, to, msg)
+}
+
+// deadline is the earlier of the configured timeout and ctx's deadline.
+func (e *Email) deadline(ctx context.Context) time.Time {
+	deadline := time.Now().Add(e.s.Timeout)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	return deadline
+}
+
+func (e *Email) dial(ctx context.Context, deadline time.Time, tlsCfg *tls.Config) (net.Conn, error) {
+	addr := net.JoinHostPort(e.s.Host, strconv.Itoa(e.s.Port))
+	dialer := &net.Dialer{Deadline: deadline}
+	if e.s.TLS == "implicit" {
+		return (&tls.Dialer{NetDialer: dialer, Config: tlsCfg}).DialContext(ctx, "tcp", addr)
+	}
+	return dialer.DialContext(ctx, "tcp", addr)
+}
+
+// handshake upgrades to TLS and authenticates, as configured.
+func (e *Email) handshake(c *smtp.Client, tlsCfg *tls.Config) error {
 	if e.s.TLS == "starttls" {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return fmt.Errorf("smtp: server does not offer STARTTLS (set tls: none only for a trusted local relay)")
@@ -149,6 +165,11 @@ func (e *Email) send(ctx context.Context, address string, msg domain.Message) er
 			return fmt.Errorf("smtp auth: %w", err)
 		}
 	}
+	return nil
+}
+
+// transmit sends the envelope and the mail, then quits.
+func (e *Email) transmit(c *smtp.Client, to []*mail.Address, msg domain.Message) error {
 	if err := c.Mail(e.from.Address); err != nil {
 		return fmt.Errorf("smtp from: %w", err)
 	}

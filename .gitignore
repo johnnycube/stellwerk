@@ -4,3 +4,5 @@
 /stellwerk.yaml
 .env
 .dev/
+cover.out
+/dist/

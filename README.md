@@ -177,7 +177,7 @@ Want a target that is not listed, or one moved up? [Open an issue](https://githu
 | [Configuration](docs/configuration.md) | Config layers, targets and accounts, fallbacks, spool, source kinds, expressions, templates |
 | [Operations](docs/operations.md) | Silences, chat commands, digests, ping URLs, canary, rule tests, reload, reliability, high availability, audit log, metrics, UI |
 | [Recipes](docs/recipes) | App by app setups |
-| [Architecture and testing](docs/architecture.md) | Hexagonal core, use cases, ports, test strategy |
+| [Architecture and testing](docs/ARCHITECTURE.md) | Hexagonal core, use cases, ports, test strategy |
 | [Extending](docs/extending.md) | New sources, targets, expression engines, spools, coordinators |
 | [Decisions](docs/adr) | Architecture decision records |
 | [Changelog](CHANGELOG.md) | What changed in each release |
@@ -185,13 +185,14 @@ Want a target that is not listed, or one moved up? [Open an issue](https://githu
 ## Development
 
 ```sh
-go test -tags goolm -race ./...                        # everything except the live tests
-go test -tags "goolm noha" ./...                       # the build without high availability
-go test -tags "goolm process" ./test/process           # kill -9 and restart
-go test -tags "goolm e2e" ./test/e2e                   # against a real Synapse, see the file header
+make tools    # the pinned linters, scanners and fleetlint
+make          # quick check before a commit
+make check    # the definition of green, the same target CI runs
+make help     # every target
+go test -tags "goolm e2e" ./test/e2e   # against a real Synapse, see the file header
 ```
 
-`goolm` selects the pure Go Olm implementation, so no libolm is needed. CGO stays on for SQLite. The architecture test in `internal/archtest` keeps the core free of adapters.
+`goolm` selects the pure Go Olm implementation, so no libolm is needed. CGO stays on for SQLite. The architecture test in `internal/archtest` keeps the core free of adapters. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security
 

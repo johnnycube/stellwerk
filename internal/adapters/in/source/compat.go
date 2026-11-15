@@ -38,17 +38,34 @@ type Ntfy struct{}
 var ntfyPriorities = map[string]int{"min": 1, "low": 2, "default": 3, "high": 4, "max": 5, "urgent": 5}
 
 func (Ntfy) Decode(in Input) ([]*domain.Event, error) {
-	pick := func(names ...string) string {
-		for _, n := range names {
-			if v := in.Header.Get(n); v != "" {
-				return v
-			}
-			if v := in.Query.Get(strings.ToLower(n)); v != "" {
-				return v
-			}
-		}
-		return ""
+	d := ntfyData(in)
+	prio := ntfyPriority(d["priority"])
+	d["priority"] = prio
+	labels := map[string]string{"topic": in.Source, "priority": strconv.Itoa(prio)}
+	if tags := tagList(d["tags"]); len(tags) > 0 {
+		labels["tags"] = strings.Join(tags, ",")
 	}
+	if strings.TrimSpace(fmt.Sprint(d["title"])) == "" {
+		delete(d, "title")
+	}
+	return []*domain.Event{{Source: in.Source, Kind: "ntfy", Labels: labels, Data: d}}, nil
+}
+
+// ntfyPick returns the first non-empty header or lowercased query parameter.
+func ntfyPick(in Input, names ...string) string {
+	for _, n := range names {
+		if v := in.Header.Get(n); v != "" {
+			return v
+		}
+		if v := in.Query.Get(strings.ToLower(n)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// ntfyData collects the publish fields from a JSON body or from body, headers and query.
+func ntfyData(in Input) map[string]any {
 	d := map[string]any{"topic": in.Source}
 	body := strings.TrimSpace(string(in.Body))
 	if strings.HasPrefix(body, "{") && json.Valid(in.Body) { // JSON publish
@@ -60,41 +77,43 @@ func (Ntfy) Decode(in Input) ([]*domain.Event, error) {
 		}
 	} else {
 		d["message"] = body
-		d["title"] = pick("X-Title", "Title", "ti", "t")
-		d["priority"] = pick("X-Priority", "Priority", "prio", "p")
-		if tags := pick("X-Tags", "Tags", "tag", "ta"); tags != "" {
+		d["title"] = ntfyPick(in, "X-Title", "Title", "ti", "t")
+		d["priority"] = ntfyPick(in, "X-Priority", "Priority", "prio", "p")
+		if tags := ntfyPick(in, "X-Tags", "Tags", "tag", "ta"); tags != "" {
 			d["tags"] = splitTags(tags)
 		}
 	}
 	if d["message"] == "" || d["message"] == nil {
-		if m := pick("X-Message", "Message", "m"); m != "" {
-			d["message"] = m
-		} else if in.Query.Get("message") == "" && len(in.Body) == 0 {
-			d["message"] = "triggered" // what ntfy sends for a bare /trigger
-		}
+		ntfyFallbackMessage(in, d)
 	}
-	prio := 3
-	switch p := d["priority"].(type) {
+	return d
+}
+
+// ntfyFallbackMessage takes the message from headers or query when the body had none.
+func ntfyFallbackMessage(in Input, d map[string]any) {
+	if m := ntfyPick(in, "X-Message", "Message", "m"); m != "" {
+		d["message"] = m
+	} else if in.Query.Get("message") == "" && len(in.Body) == 0 {
+		d["message"] = "triggered" // what ntfy sends for a bare /trigger
+	}
+}
+
+// ntfyPriority maps a number or ntfy priority name to 1 to 5, default 3.
+func ntfyPriority(v any) int {
+	switch p := v.(type) {
 	case string:
 		if n, err := strconv.Atoi(p); err == nil && n >= 1 && n <= 5 {
-			prio = n
-		} else if n, ok := ntfyPriorities[strings.ToLower(p)]; ok {
-			prio = n
+			return n
+		}
+		if n, ok := ntfyPriorities[strings.ToLower(p)]; ok {
+			return n
 		}
 	case json.Number:
 		if n, err := p.Int64(); err == nil && n >= 1 && n <= 5 {
-			prio = int(n)
+			return int(n)
 		}
 	}
-	d["priority"] = prio
-	labels := map[string]string{"topic": in.Source, "priority": strconv.Itoa(prio)}
-	if tags := tagList(d["tags"]); len(tags) > 0 {
-		labels["tags"] = strings.Join(tags, ",")
-	}
-	if strings.TrimSpace(fmt.Sprint(d["title"])) == "" {
-		delete(d, "title")
-	}
-	return []*domain.Event{{Source: in.Source, Kind: "ntfy", Labels: labels, Data: d}}, nil
+	return 3
 }
 
 func splitTags(s string) []any {

@@ -194,15 +194,9 @@ func plainReply(w http.ResponseWriter, code int, detail string) {
 // receive authenticates, limits, decodes and ingests one request. authed:
 // the caller already checked the token (Gotify finds the source by it).
 func (s *Server) receive(w http.ResponseWriter, r *http.Request, name string, src Source, authed bool, out reply) {
-	if !authed {
-		if src.Token != "" && !checkToken(r, src.Token, src.TokenHeader) {
-			out(w, http.StatusUnauthorized, "unauthorized")
-			return
-		}
-		if src.Token == "" && src.Signature == nil {
-			out(w, http.StatusUnauthorized, "unauthorized") // never open by accident
-			return
-		}
+	if !authed && !sourceAuthorized(r, src) {
+		out(w, http.StatusUnauthorized, "unauthorized")
+		return
 	}
 	var body []byte
 	if src.Signature != nil {
@@ -218,21 +212,9 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, name string, sr
 	}
 	// Limit after the token check, so nobody without a token can use up a
 	// sender's budget. One bucket per source name, also for "*" sources.
-	if src.RateLimit != nil {
-		s.limitOnce.Do(func() {
-			if s.limits == nil {
-				s.limits = newLimiter()
-			}
-		})
-		if ok, wait := s.limits.allow(name, *src.RateLimit); !ok {
-			if s.OnRateLimited != nil {
-				s.OnRateLimited(name)
-			}
-			s.Ingest.Refuse(ports.RefusedRequest{Source: name, Kind: src.Kind, Reason: "rate limit exceeded"})
-			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
-			out(w, http.StatusTooManyRequests, "rate limit exceeded, retry later")
-			return
-		}
+	if !s.withinRateLimit(w, name, src) {
+		out(w, http.StatusTooManyRequests, "rate limit exceeded, retry later")
+		return
 	}
 	if body == nil {
 		var err error
@@ -249,6 +231,37 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, name string, sr
 	}
 	res := s.Ingest.Ingest(r.Context(), ports.IngestRequest{Events: events, Raw: body})
 	out(w, statusFor(res.Outcome), res.Detail)
+}
+
+// sourceAuthorized checks the source's token; without one a signature is required.
+func sourceAuthorized(r *http.Request, src Source) bool {
+	if src.Token != "" {
+		return checkToken(r, src.Token, src.TokenHeader)
+	}
+	return src.Signature != nil // never open by accident
+}
+
+// withinRateLimit takes from the source's bucket; when it is empty it
+// records the refusal and sets Retry-After.
+func (s *Server) withinRateLimit(w http.ResponseWriter, name string, src Source) bool {
+	if src.RateLimit == nil {
+		return true
+	}
+	s.limitOnce.Do(func() {
+		if s.limits == nil {
+			s.limits = newLimiter()
+		}
+	})
+	ok, wait := s.limits.allow(name, *src.RateLimit)
+	if ok {
+		return true
+	}
+	if s.OnRateLimited != nil {
+		s.OnRateLimited(name)
+	}
+	s.Ingest.Refuse(ports.RefusedRequest{Source: name, Kind: src.Kind, Reason: "rate limit exceeded"})
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
+	return false
 }
 
 // handlePing serves the healthchecks-style URLs. Unknown names and missing

@@ -103,6 +103,36 @@ func New(ctx context.Context, cfg Settings, log *slog.Logger, commands target.Co
 	}
 	client.Log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.WarnLevel).With().Timestamp().Logger()
 
+	ch, err := initCrypto(ctx, client, cfg)
+	if err != nil {
+		return nil, err
+	}
+	client.Crypto = ch
+
+	m := &Matrix{client: client, crypto: ch, log: log, password: cfg.Password, started: time.Now(), watches: map[string]chan struct{}{}}
+	commandUsers := cfg.CommandUsers
+	if len(commandUsers) == 0 {
+		commandUsers = cfg.AllowedInviters
+	}
+
+	if cfg.RecoveryKey != "" {
+		m.verifyWithRecoveryKey(ctx, cfg.RecoveryKey)
+	}
+
+	syncer := client.Syncer.(*mautrix.DefaultSyncer)
+	syncer.OnSync(func(_ context.Context, _ *mautrix.RespSync, _ string) bool {
+		m.synced.Store(true)
+		return true
+	})
+	// Decrypted messages arrive here (the crypto helper decrypts and passes
+	// them on): for read-back checks and for chat commands.
+	syncer.OnEventType(event.EventMessage, m.onMessage(commands, commandUsers))
+	syncer.OnEventType(event.StateMember, m.onMember(cfg.AllowedInviters))
+	return m, nil
+}
+
+// initCrypto sets up the crypto helper and logs in if there is no stored device yet.
+func initCrypto(ctx context.Context, client *mautrix.Client, cfg Settings) (*cryptohelper.CryptoHelper, error) {
 	ch, err := cryptohelper.NewCryptoHelper(client, []byte(cfg.PickleKey), cfg.Database)
 	if err != nil {
 		return nil, fmt.Errorf("crypto helper: %w", err)
@@ -122,38 +152,27 @@ func New(ctx context.Context, cfg Settings, log *slog.Logger, commands target.Co
 	if err := ch.Init(ctx); err != nil {
 		return nil, fmt.Errorf("crypto init / login: %w", err)
 	}
-	client.Crypto = ch
+	return ch, nil
+}
 
-	m := &Matrix{client: client, crypto: ch, log: log, password: cfg.Password, started: time.Now(), watches: map[string]chan struct{}{}}
-	commandUsers := cfg.CommandUsers
-	if len(commandUsers) == 0 {
-		commandUsers = cfg.AllowedInviters
+// verifyWithRecoveryKey cross-signs this device with the existing identity,
+// so Element shows the bot as verified instead of "unverified device".
+func (m *Matrix) verifyWithRecoveryKey(ctx context.Context, recoveryKey string) {
+	if err := m.crypto.Machine().VerifyWithRecoveryKey(ctx, recoveryKey); err != nil {
+		m.log.Warn("could not verify device with recovery key", "err", err)
+	} else {
+		m.log.Info("device cross-signed with recovery key")
 	}
+}
 
-	if cfg.RecoveryKey != "" {
-		// Cross-sign this device with the existing identity, so Element shows
-		// the bot as verified instead of "unverified device".
-		if err := ch.Machine().VerifyWithRecoveryKey(ctx, cfg.RecoveryKey); err != nil {
-			log.Warn("could not verify device with recovery key", "err", err)
-		} else {
-			log.Info("device cross-signed with recovery key")
-		}
-	}
-
-	syncer := client.Syncer.(*mautrix.DefaultSyncer)
-	syncer.OnSync(func(_ context.Context, _ *mautrix.RespSync, _ string) bool {
-		m.synced.Store(true)
-		return true
-	})
-	// Decrypted messages arrive here (the crypto helper decrypts and passes
-	// them on): for read-back checks and for chat commands.
-	syncer.OnEventType(event.EventMessage, func(ctx context.Context, evt *event.Event) {
+func (m *Matrix) onMessage(commands target.CommandFunc, commandUsers []string) mautrix.EventHandler {
+	return func(ctx context.Context, evt *event.Event) {
 		msg := evt.Content.AsMessage()
 		if msg == nil {
 			return
 		}
 		m.seen(evt.RoomID.String(), msg.Body)
-		if commands == nil || evt.Sender == client.UserID || time.UnixMilli(evt.Timestamp).Before(m.started) {
+		if commands == nil || evt.Sender == m.client.UserID || time.UnixMilli(evt.Timestamp).Before(m.started) {
 			return // not ours to answer, our own, or history from before the start
 		}
 		if !slices.Contains(commandUsers, evt.Sender.String()) {
@@ -164,17 +183,22 @@ func New(ctx context.Context, cfg Settings, log *slog.Logger, commands target.Co
 			return
 		}
 		if err := m.Send(ctx, evt.RoomID.String(), domain.Message{Markdown: reply}); err != nil {
-			log.Warn("command reply failed", "room", evt.RoomID, "err", err)
+			m.log.Warn("command reply failed", "room", evt.RoomID, "err", err)
 		}
-	})
-	syncer.OnEventType(event.StateMember, func(ctx context.Context, evt *event.Event) {
+	}
+}
+
+// onMember joins rooms on invites from allowed users.
+func (m *Matrix) onMember(allowedInviters []string) mautrix.EventHandler {
+	client, log := m.client, m.log
+	return func(ctx context.Context, evt *event.Event) {
 		if evt.GetStateKey() != client.UserID.String() || evt.Content.AsMember().Membership != event.MembershipInvite {
 			return
 		}
 		if m, _ := client.StateStore.GetMember(ctx, evt.RoomID, client.UserID); m != nil && m.Membership == event.MembershipJoin {
 			return // invite replayed after we already joined
 		}
-		if !slices.Contains(cfg.AllowedInviters, evt.Sender.String()) {
+		if !slices.Contains(allowedInviters, evt.Sender.String()) {
 			log.Warn("ignoring invite from non-allowed user", "room", evt.RoomID, "inviter", evt.Sender)
 			return
 		}
@@ -183,8 +207,7 @@ func New(ctx context.Context, cfg Settings, log *slog.Logger, commands target.Co
 		} else {
 			log.Info("joined room", "room", evt.RoomID, "inviter", evt.Sender)
 		}
-	})
-	return m, nil
+	}
 }
 
 // Run keeps syncing: sync delivers room membership and device lists, which
@@ -303,31 +326,40 @@ func (m *Matrix) Check(ctx context.Context, rooms []string) []string {
 		problems = append(problems, "this device is not cross-signed: run -bootstrap-cross-signing once and set recovery_key, or clients show the bot as unverified")
 	}
 	for _, r := range rooms {
-		rid := id.RoomID(r)
-		mem, err := m.client.StateStore.GetMember(ctx, rid, m.client.UserID)
-		switch {
-		case err != nil:
-			problems = append(problems, fmt.Sprintf("%s: %v", r, err))
-			continue
-		case mem == nil || mem.Membership != event.MembershipJoin:
-			state := "not a member"
-			if mem != nil {
-				switch mem.Membership {
-				case event.MembershipBan:
-					state = "banned"
-				case event.MembershipInvite:
-					state = "invited but has not joined"
-				default: // left, knocked: "not a member"
-				}
-			}
-			problems = append(problems, fmt.Sprintf("%s: the bot is %s (invite it from an allowed_inviters account)", r, state))
-			continue
-		}
-		if enc, err := m.client.StateStore.IsEncrypted(ctx, rid); err == nil && !enc {
-			problems = append(problems, fmt.Sprintf("%s: the room is not encrypted, stellwerk refuses to send there", r))
+		if p := m.roomProblem(ctx, r); p != "" {
+			problems = append(problems, p)
 		}
 	}
 	return problems
+}
+
+// roomProblem is what keeps room r from working, or "".
+func (m *Matrix) roomProblem(ctx context.Context, r string) string {
+	rid := id.RoomID(r)
+	mem, err := m.client.StateStore.GetMember(ctx, rid, m.client.UserID)
+	switch {
+	case err != nil:
+		return fmt.Sprintf("%s: %v", r, err)
+	case mem == nil || mem.Membership != event.MembershipJoin:
+		return fmt.Sprintf("%s: the bot is %s (invite it from an allowed_inviters account)", r, membershipState(mem))
+	}
+	if enc, err := m.client.StateStore.IsEncrypted(ctx, rid); err == nil && !enc {
+		return fmt.Sprintf("%s: the room is not encrypted, stellwerk refuses to send there", r)
+	}
+	return ""
+}
+
+func membershipState(mem *event.MemberEventContent) string {
+	if mem != nil {
+		switch mem.Membership {
+		case event.MembershipBan:
+			return "banned"
+		case event.MembershipInvite:
+			return "invited but has not joined"
+		default: // left, knocked: "not a member"
+		}
+	}
+	return "not a member"
 }
 
 // BootstrapCrossSigning creates a cross-signing identity for the bot and

@@ -40,8 +40,8 @@ First release.
 - `stellwerk init` sets up a Matrix bot, an encrypted room and a working config. `stellwerk send` posts from scripts.
 - JSON Schema for the config (`stellwerk -schema`, `docs/stellwerk.schema.json`) for editor completion.
 - Recipes for Alertmanager, Grafana, Uptime Kuma, the *arr apps, Proxmox, TrueNAS, Home Assistant, Watchtower, Diun, Git platforms and cron jobs.
-- Releases with Linux binaries for amd64 and arm64, a cosign-signed image with SBOM and provenance, signed checksums and a Helm chart in ghcr.io.
-- CI: fuzzing of decoders and parsers, `govulncheck`, a SIGKILL and restart test, Helm lint and schema validation, Renovate.
+- Releases with Linux binaries for amd64 and arm64, a cosign-signed image with SBOM and provenance, signed checksums, build provenance attestations for the binaries and the chart, and a Helm chart in ghcr.io.
+- `make check` as the definition of green, run by CI and the pre-push hook: golangci-lint, tests with the race detector, with and without HA, a SIGKILL and restart test, a coverage floor, govulncheck, a license allowlist, gitleaks, schema and example config checks and fleetlint. Also in CI: fuzzing of decoders and parsers, CodeQL, Helm lint and schema validation, weekly mutation testing of the domain core, Renovate. Workflows are pinned to commit SHAs and checked with actionlint and zizmor.
 - License: Apache 2.0.
 
 ### Fixed

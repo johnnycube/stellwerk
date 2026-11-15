@@ -85,21 +85,11 @@ func exit(err error) {
 var errTestsFailed = errors.New("tests failed")
 
 func run(f flags, stdout io.Writer) error {
-	var dirs []string
-	for _, d := range strings.Split(f.dirs, ",") {
-		if d = strings.TrimSpace(d); d != "" {
-			dirs = append(dirs, d)
-		}
-	}
+	dirs := splitDirs(f.dirs)
 	opts := config.OptionsFromEnv(f.file, dirs, os.Environ())
 
 	if f.printConfig {
-		out, err := config.Redacted(opts)
-		if err != nil {
-			return err
-		}
-		fmt.Fprint(stdout, out)
-		return nil
+		return printConfig(opts, stdout)
 	}
 
 	cfg, warnings, err := config.LoadFrom(opts)
@@ -107,9 +97,7 @@ func run(f flags, stdout io.Writer) error {
 		return err
 	}
 	log := newLogger(cfg.Log, f.debug).With("node", cfg.NodeID)
-	for _, w := range warnings {
-		log.Warn("config: " + w)
-	}
+	logWarnings(log, warnings)
 
 	a, err := bootstrap.Build(cfg, log)
 	if err != nil {
@@ -123,15 +111,48 @@ func run(f flags, stdout io.Writer) error {
 		return nil
 	}
 	if f.check {
-		accounts := 0
-		for _, t := range cfg.Targets {
-			accounts += len(t.AccountNames())
-		}
-		fmt.Fprintf(stdout, "config ok: %d sources, %d targets with %d accounts, %d destinations, %d routes, %d heartbeats, ha: %v\n",
-			len(cfg.Sources), len(cfg.Targets), accounts, len(cfg.Destinations), len(cfg.Routes), len(cfg.Heartbeats), cfg.HA.Enabled)
+		printCheck(cfg, stdout)
 		return nil
 	}
+	return serve(a, f, dirs, opts, log, stdout)
+}
 
+func splitDirs(s string) []string {
+	var dirs []string
+	for _, d := range strings.Split(s, ",") {
+		if d = strings.TrimSpace(d); d != "" {
+			dirs = append(dirs, d)
+		}
+	}
+	return dirs
+}
+
+func printConfig(opts config.LoadOptions, stdout io.Writer) error {
+	out, err := config.Redacted(opts)
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(stdout, out)
+	return nil
+}
+
+func logWarnings(log *slog.Logger, warnings []string) {
+	for _, w := range warnings {
+		log.Warn("config: " + w)
+	}
+}
+
+func printCheck(cfg *config.Config, stdout io.Writer) {
+	accounts := 0
+	for _, t := range cfg.Targets {
+		accounts += len(t.AccountNames())
+	}
+	fmt.Fprintf(stdout, "config ok: %d sources, %d targets with %d accounts, %d destinations, %d routes, %d heartbeats, ha: %v\n",
+		len(cfg.Sources), len(cfg.Targets), accounts, len(cfg.Destinations), len(cfg.Routes), len(cfg.Heartbeats), cfg.HA.Enabled)
+}
+
+// serve connects the targets and runs until SIGINT or SIGTERM.
+func serve(a *bootstrap.App, f flags, dirs []string, opts config.LoadOptions, log *slog.Logger, stdout io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	if err := a.Connect(ctx); err != nil {
@@ -147,9 +168,7 @@ func run(f flags, stdout io.Writer) error {
 	}
 	a.Load = func() (*config.Config, error) {
 		cfg, warnings, err := config.LoadFrom(config.OptionsFromEnv(f.file, dirs, os.Environ()))
-		for _, w := range warnings {
-			log.Warn("config: " + w)
-		}
+		logWarnings(log, warnings)
 		return cfg, err
 	}
 	go reloadOnSignal(ctx, a, log)

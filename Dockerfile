@@ -1,4 +1,4 @@
-FROM golang:1.27-trixie AS build
+FROM golang:1.27-trixie@sha256:c47c3fda018d13d43a6bf5ebac3e5bba8a23a35782aa4faf531afaf47c64c39f AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -9,7 +9,7 @@ ARG VERSION=dev
 ARG TAGS=goolm
 RUN CGO_ENABLED=1 go build -tags "${TAGS}" -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /stellwerk ./cmd/stellwerk
 
-FROM gcr.io/distroless/base-debian13:nonroot
+FROM gcr.io/distroless/base-debian13:nonroot@sha256:a08d9054afbaf1af9b90fd02cdc7b32236319b5376d374505a41548d42b0c5db
 COPY --from=build /stellwerk /stellwerk
 VOLUME /data
 EXPOSE 8080 8081

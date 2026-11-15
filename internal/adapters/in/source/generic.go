@@ -33,15 +33,30 @@ type GenericOptions struct {
 type Generic struct{ opts GenericOptions }
 
 func (g *Generic) Decode(in Input) ([]*domain.Event, error) {
-	var data any
-	if json.Valid(in.Body) {
-		var err error
-		if data, err = DecodeJSON(in.Body); err != nil {
-			return nil, err
-		}
-	} else {
-		data = map[string]any{"text": strings.TrimSpace(string(in.Body))}
+	data, err := genericData(in.Body)
+	if err != nil {
+		return nil, err
 	}
+	labels := g.labels(in, data)
+	ev := &domain.Event{Source: in.Source, Kind: "generic", Labels: labels, Data: data}
+	if g.opts.StatusField != "" {
+		if v, ok := domain.Lookup(data, g.opts.StatusField); ok && v != nil {
+			ev.Status = fmt.Sprint(v)
+		}
+	}
+	return []*domain.Event{ev}, nil
+}
+
+// genericData decodes a JSON body, or wraps any other body as {"text": ...}.
+func genericData(body []byte) (any, error) {
+	if json.Valid(body) {
+		return DecodeJSON(body)
+	}
+	return map[string]any{"text": strings.TrimSpace(string(body))}, nil
+}
+
+// labels are the query parameters (except token) plus the configured paths.
+func (g *Generic) labels(in Input, data any) map[string]string {
 	labels := map[string]string{}
 	for k, v := range in.Query {
 		if k != "token" && len(v) > 0 {
@@ -53,11 +68,5 @@ func (g *Generic) Decode(in Input) ([]*domain.Event, error) {
 			labels[label] = fmt.Sprint(v)
 		}
 	}
-	ev := &domain.Event{Source: in.Source, Kind: "generic", Labels: labels, Data: data}
-	if g.opts.StatusField != "" {
-		if v, ok := domain.Lookup(data, g.opts.StatusField); ok && v != nil {
-			ev.Status = fmt.Sprint(v)
-		}
-	}
-	return []*domain.Event{ev}, nil
+	return labels
 }

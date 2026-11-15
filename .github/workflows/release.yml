@@ -2,20 +2,23 @@ name: release
 on:
   push:
     tags: ["v*"]
+
 permissions:
-  contents: write
-  packages: write
-  id-token: write   # keyless signing with cosign
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with: { go-version-file: go.mod }
-      - run: go vet -tags goolm ./...
-      - run: go test -tags goolm -race ./...
-      - run: go test -tags "goolm noha" ./...
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false   # release builds never restore a cache other runs wrote
+      - run: make test
 
   binaries:
     needs: test
@@ -25,24 +28,31 @@ jobs:
           - { runner: ubuntu-latest, arch: amd64 }
           - { runner: ubuntu-24.04-arm, arch: arm64 }
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with: { go-version-file: go.mod }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false   # release builds never restore a cache other runs wrote
       - name: Build (CGO for SQLite, so natively per architecture)
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
-          name="stellwerk_${GITHUB_REF_NAME#v}_linux_${{ matrix.arch }}"
+          name="stellwerk_${GITHUB_REF_NAME#v}_linux_${ARCH}"
           mkdir -p "dist/$name"
           CGO_ENABLED=1 go build -tags goolm -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/$name/stellwerk" ./cmd/stellwerk
           cp LICENSE NOTICE README.md CHANGELOG.md stellwerk.example.yaml "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
-      - uses: anchore/sbom-action@v0
+      - uses: anchore/sbom-action@fffec3d851af758d56fee099cf3fbf8aa8779843 # v0.24.3
         with:
           path: dist
           format: spdx-json
           output-file: dist/stellwerk_linux_${{ matrix.arch }}.sbom.spdx.json
           upload-artifact: false
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bin-${{ matrix.arch }}
           path: |
@@ -52,68 +62,109 @@ jobs:
   image:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # keyless signing with cosign
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+      - name: Reproducible timestamps from the tagged commit
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - id: push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         env:
           DOCKER_BUILD_RECORD_UPLOAD: "false"   # keeps the build record out of the release assets
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
+          outputs: type=image,push=true,rewrite-timestamp=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ github.ref_name }}
           sbom: true                # SBOM attestation in the registry
           provenance: mode=max
-      - uses: sigstore/cosign-installer@v4.1.3
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign the image (keyless, tied to this workflow)
-        run: cosign sign --yes "ghcr.io/${GITHUB_REPOSITORY}@${{ steps.push.outputs.digest }}"
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes "ghcr.io/${GITHUB_REPOSITORY}@${DIGEST}"
 
   chart:
     needs: image
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/setup-helm@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
       - name: Package and push the chart to ghcr.io (OCI)
+        id: push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
         run: |
           v="${GITHUB_REF_NAME#v}"
           helm package deploy/helm/stellwerk --version "$v" --app-version "$GITHUB_REF_NAME" -d dist
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-          helm push "dist/stellwerk-$v.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts"
-      - uses: actions/upload-artifact@v7
+          echo "$GH_TOKEN" | helm registry login ghcr.io -u "$ACTOR" --password-stdin
+          helm push "dist/stellwerk-$v.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts" 2>&1 | tee push.log
+          echo "digest=$(grep -o 'sha256:[0-9a-f]*' push.log | head -1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/charts/stellwerk
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: { name: chart, path: dist/*.tgz }
 
   release:
     needs: [binaries, image, chart]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { path: dist, merge-multiple: true }
-      - uses: sigstore/cosign-installer@v4.1.3
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.tgz
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Checksums, signed
         run: |
           cd dist
-          sha256sum *.tar.gz *.tgz > SHA256SUMS
+          sha256sum -- *.tar.gz *.tgz > SHA256SUMS
           cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
       - name: GitHub release with the changelog section
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
@@ -125,7 +176,9 @@ jobs:
           **Image:** \`ghcr.io/${GITHUB_REPOSITORY}:${v}\`, signed with cosign:
           \`cosign verify ghcr.io/${GITHUB_REPOSITORY}:${v} --certificate-identity-regexp 'https://github.com/${GITHUB_REPOSITORY}/' --certificate-oidc-issuer https://token.actions.githubusercontent.com\`
 
+          **Provenance:** \`gh attestation verify <file> -R ${GITHUB_REPOSITORY}\`
+
           **Helm:** \`helm install stellwerk oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/stellwerk --version ${v}\`
           EOF2
           pre=""; case "$v" in *-*) pre="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md $pre dist/*
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag $pre dist/*

@@ -130,39 +130,44 @@ func fieldDocs() map[string]string {
 		return out
 	}
 	for _, decl := range f.Decls {
-		gd, ok := decl.(*ast.GenDecl)
-		if !ok {
-			continue
-		}
-		for _, spec := range gd.Specs {
-			ts, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-			if gd.Doc != nil {
-				out[ts.Name.Name] = clean(gd.Doc.Text())
-			}
-			st, ok := ts.Type.(*ast.StructType)
-			if !ok {
-				continue
-			}
-			for _, fld := range st.Fields.List {
-				var doc []string
-				if fld.Doc != nil {
-					doc = append(doc, clean(fld.Doc.Text()))
-				}
-				if fld.Comment != nil {
-					doc = append(doc, clean(fld.Comment.Text()))
-				}
-				for _, n := range fld.Names {
-					if len(doc) > 0 {
-						out[ts.Name.Name+"."+n.Name] = strings.Join(doc, " ")
-					}
-				}
-			}
+		if gd, ok := decl.(*ast.GenDecl); ok {
+			typeDocs(out, gd)
 		}
 	}
 	return out
+}
+
+func typeDocs(out map[string]string, gd *ast.GenDecl) {
+	for _, spec := range gd.Specs {
+		ts, ok := spec.(*ast.TypeSpec)
+		if !ok {
+			continue
+		}
+		if gd.Doc != nil {
+			out[ts.Name.Name] = clean(gd.Doc.Text())
+		}
+		if st, ok := ts.Type.(*ast.StructType); ok {
+			structFieldDocs(out, ts.Name.Name, st)
+		}
+	}
+}
+
+func structFieldDocs(out map[string]string, typeName string, st *ast.StructType) {
+	for _, fld := range st.Fields.List {
+		var doc []string
+		if fld.Doc != nil {
+			doc = append(doc, clean(fld.Doc.Text()))
+		}
+		if fld.Comment != nil {
+			doc = append(doc, clean(fld.Comment.Text()))
+		}
+		if len(doc) == 0 {
+			continue
+		}
+		for _, n := range fld.Names {
+			out[typeName+"."+n.Name] = strings.Join(doc, " ")
+		}
+	}
 }
 
 func clean(s string) string { return strings.Join(strings.Fields(s), " ") }

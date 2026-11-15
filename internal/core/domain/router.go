@@ -73,26 +73,44 @@ func (c *CompiledMatch) Explain(ev *Event) (bool, string) {
 	if c.status != nil && !c.status.ok(ev.Status, ev.Status != "") {
 		return false, fmt.Sprintf("status %q does not match %q", ev.Status, c.m.Status)
 	}
+	if why := c.labelMismatch(ev); why != "" {
+		return false, why
+	}
+	if why := c.fieldMismatch(ev); why != "" {
+		return false, why
+	}
+	return true, ""
+}
+
+// labelMismatch names the first label that does not match, or is "".
+func (c *CompiledMatch) labelMismatch(ev *Event) string {
 	for _, k := range sortedKeys(c.labels) {
 		v, present := ev.Labels[k]
-		if !c.labels[k].ok(v, present) {
-			if !present {
-				return false, fmt.Sprintf("label %s is missing", k)
-			}
-			return false, fmt.Sprintf("label %s=%q does not match %q", k, v, c.m.Labels[k])
+		if c.labels[k].ok(v, present) {
+			continue
 		}
+		if !present {
+			return fmt.Sprintf("label %s is missing", k)
+		}
+		return fmt.Sprintf("label %s=%q does not match %q", k, v, c.m.Labels[k])
 	}
+	return ""
+}
+
+// fieldMismatch names the first field that does not match, or is "".
+func (c *CompiledMatch) fieldMismatch(ev *Event) string {
 	for _, k := range sortedKeys(c.fields) {
 		v, present := Lookup(ev.Data, k)
 		present = present && v != nil
-		if !c.fields[k].ok(fmt.Sprint(v), present) {
-			if !present {
-				return false, fmt.Sprintf("field %s is missing", k)
-			}
-			return false, fmt.Sprintf("field %s=%q does not match %q", k, fmt.Sprint(v), c.m.Fields[k])
+		if c.fields[k].ok(fmt.Sprint(v), present) {
+			continue
 		}
+		if !present {
+			return fmt.Sprintf("field %s is missing", k)
+		}
+		return fmt.Sprintf("field %s=%q does not match %q", k, fmt.Sprint(v), c.m.Fields[k])
 	}
-	return true, ""
+	return ""
 }
 
 type route struct {
@@ -113,43 +131,58 @@ type Router struct {
 // rule names, or the default one of engines.
 func NewRouter(rules []Rule, destinations map[string]Destination, renderer *Renderer, engines Engines) (*Router, error) {
 	r := &Router{destinations: destinations, renderer: renderer}
-	for alias, d := range destinations {
-		for _, fb := range d.Fallback {
-			if fb == alias {
-				return nil, fmt.Errorf("destination %s: cannot be its own fallback", alias)
-			}
-			if _, ok := destinations[fb]; !ok {
-				return nil, fmt.Errorf("destination %s: unknown fallback %q", alias, fb)
-			}
-		}
+	if err := checkFallbacks(destinations); err != nil {
+		return nil, err
 	}
 	for _, rc := range rules {
-		for _, alias := range rc.To {
-			if _, ok := destinations[alias]; !ok {
-				return nil, fmt.Errorf("rule %s: unknown destination %q", rc.Name, alias)
-			}
-		}
-		if !rc.Drop && rc.Template != "" && !renderer.Has(rc.Template) {
-			return nil, fmt.Errorf("route %s: unknown template %q", rc.Name, rc.Template)
-		}
-		cm, err := CompileMatch(rc.Match)
+		rt, err := r.compileRoute(rc, engines)
 		if err != nil {
-			return nil, fmt.Errorf("route %s: %w", rc.Name, err)
-		}
-		rt := route{cfg: rc, match: cm}
-		if !ValidPriority(rc.Priority) {
-			return nil, fmt.Errorf("route %s: priority %q must be one of %v", rc.Name, rc.Priority, Priorities)
-		}
-		if rc.Expr != "" {
-			m, err := engines.Compile(rc.Engine, rc.Expr)
-			if err != nil {
-				return nil, fmt.Errorf("route %s: %w", rc.Name, err)
-			}
-			rt.expr = m
+			return nil, err
 		}
 		r.routes = append(r.routes, rt)
 	}
 	return r, nil
+}
+
+func checkFallbacks(destinations map[string]Destination) error {
+	for alias, d := range destinations {
+		for _, fb := range d.Fallback {
+			if fb == alias {
+				return fmt.Errorf("destination %s: cannot be its own fallback", alias)
+			}
+			if _, ok := destinations[fb]; !ok {
+				return fmt.Errorf("destination %s: unknown fallback %q", alias, fb)
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Router) compileRoute(rc Rule, engines Engines) (route, error) {
+	for _, alias := range rc.To {
+		if _, ok := r.destinations[alias]; !ok {
+			return route{}, fmt.Errorf("rule %s: unknown destination %q", rc.Name, alias)
+		}
+	}
+	if !rc.Drop && rc.Template != "" && !r.renderer.Has(rc.Template) {
+		return route{}, fmt.Errorf("route %s: unknown template %q", rc.Name, rc.Template)
+	}
+	cm, err := CompileMatch(rc.Match)
+	if err != nil {
+		return route{}, fmt.Errorf("route %s: %w", rc.Name, err)
+	}
+	rt := route{cfg: rc, match: cm}
+	if !ValidPriority(rc.Priority) {
+		return route{}, fmt.Errorf("route %s: priority %q must be one of %v", rc.Name, rc.Priority, Priorities)
+	}
+	if rc.Expr != "" {
+		m, err := engines.Compile(rc.Engine, rc.Expr)
+		if err != nil {
+			return route{}, fmt.Errorf("route %s: %w", rc.Name, err)
+		}
+		rt.expr = m
+	}
+	return rt, nil
 }
 
 // explain reports whether the route applies and, if not, which condition failed.

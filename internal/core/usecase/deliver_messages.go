@@ -239,20 +239,23 @@ func (d *DeliverMessages) recover(ctx context.Context) {
 	for _, k := range order {
 		d.audit.Record(*byEntry[k])
 	}
-	go func() {
-		for _, del := range left {
-			if del.ID == "" {
-				continue
-			}
-			d.pending.Add(1)
-			select {
-			case d.queues[del.Endpoint] <- job{d: del, done: make(chan error, 1)}:
-			case <-ctx.Done():
-				d.pending.Add(-1)
-				return
-			}
+	go d.requeue(ctx, left)
+}
+
+// requeue hands recovered deliveries to the workers, skipping marked ones.
+func (d *DeliverMessages) requeue(ctx context.Context, left []domain.Delivery) {
+	for _, del := range left {
+		if del.ID == "" {
+			continue
 		}
-	}()
+		d.pending.Add(1)
+		select {
+		case d.queues[del.Endpoint] <- job{d: del, done: make(chan error, 1)}:
+		case <-ctx.Done():
+			d.pending.Add(-1)
+			return
+		}
+	}
 }
 
 func (d *DeliverMessages) worker(ctx context.Context, s ports.Sender, q chan job) {
@@ -387,13 +390,7 @@ func (d *DeliverMessages) deliver(ctx context.Context, s ports.Sender, del domai
 	backoff := min(time.Second, d.maxBackoff)
 	for attempt := 1; ; attempt++ {
 		err := s.Send(ctx, del.Address, del.Message)
-		if d.audited(del) {
-			a := ports.AuditAttempt{Time: d.clock.Now()}
-			if err != nil {
-				a.Error = err.Error()
-			}
-			d.audit.Attempt(del.EntryID, del.Index, a)
-		}
+		d.recordAttempt(del, err)
 		if err == nil {
 			d.log.Debug("delivered", "route", del.Route, "destination", del.Destination, "endpoint", del.Endpoint)
 			return nil
@@ -418,6 +415,17 @@ func (d *DeliverMessages) deliver(ctx context.Context, s ports.Sender, del domai
 		}
 		backoff = min(backoff*2, d.maxBackoff)
 	}
+}
+
+func (d *DeliverMessages) recordAttempt(del domain.Delivery, err error) {
+	if !d.audited(del) {
+		return
+	}
+	a := ports.AuditAttempt{Time: d.clock.Now()}
+	if err != nil {
+		a.Error = err.Error()
+	}
+	d.audit.Attempt(del.EntryID, del.Index, a)
 }
 
 func (d *DeliverMessages) audited(del domain.Delivery) bool {

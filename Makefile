@@ -13,7 +13,7 @@ PKGS        := ./...
 LICENSES    ?= MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0
 # Mutation testing scope and floor (weekly, not part of check).
 MUTATE_PKG  ?= ./internal/core/domain
-MUTATE_MIN  ?= 70
+MUTATE_MIN  ?= 85
 # Each pin carries a `# renovate:` comment so Renovate bumps it (customManagers in renovate.json).
 # renovate: datasource=go depName=github.com/golangci/golangci-lint/v2
 GOLANGCI_VERSION    ?= v2.15.0
@@ -69,7 +69,7 @@ cover: ## tests with coverage; fail if the total is below COVER_MIN
 # go-licenses spots stdlib packages by GOROOT; pass the active toolchain's, not the one it was built with
 audit: ## vulnerabilities, licenses, tidy module graph, secrets
 	govulncheck -tags "$(TAGS)" $(PKGS)
-	GOROOT=$$(go env GOROOT) go-licenses check -tags "$(TAGS)" $(PKGS) --allowed_licenses=$(LICENSES)
+	GOROOT=$$(go env GOROOT) GOFLAGS=-tags=$(TAGS) go-licenses check $(PKGS) --allowed_licenses=$(LICENSES)
 	go mod tidy -diff
 	gitleaks git --no-banner --redact .
 
@@ -96,7 +96,7 @@ dist: ## a release archive for this machine into dist/ (the release workflow bui
 	tar -C dist -czf "dist/$$name.tar.gz" "$$name"
 
 mutate: ## mutation testing on the domain core, fail below MUTATE_MIN % efficacy (weekly in CI)
-	gremlins unleash --tags "$(TAGS)" --threshold-efficacy $(MUTATE_MIN) $(MUTATE_PKG)
+	gremlins unleash --timeout-coefficient 60 --threshold-efficacy $(MUTATE_MIN) $(MUTATE_PKG)
 
 check-fast: ## before every commit (< 30 s)
 	golangci-lint fmt --diff

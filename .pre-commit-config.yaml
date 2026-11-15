@@ -19,7 +19,7 @@ repos:
       - id: check-case-conflict
       - id: check-illegal-windows-names
       - id: check-added-large-files
-        args: [--maxkb=500]
+        args: [--maxkb=2048] # fleetlint repo/no-large-files: 2 MiB
       - id: check-yaml
       - id: check-toml
       - id: check-json
@@ -44,18 +44,15 @@ repos:
         stages: [commit-msg]
         args: [--strict, feat, fix, refactor, perf, test, docs, build, ci, style, chore, revert]
 
-  # Shell scripts (drop if the repo has none)
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.11.0.1-1
+  # Workflows: syntax and expressions, then security (template injection, credentials, permissions)
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
     hooks:
-      - id: shellcheck
-        exclude: ^gradlew$ # the Gradle wrapper script is generated
-  - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.14.1-1
+      - id: actionlint
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.32.0
     hooks:
-      - id: shfmt
-        args: [-w, -i, "2", -ci]
-        exclude: ^gradlew$
+      - id: zizmor
 
   # Repository setup policy: the rules in .fleetlint.yaml, on every commit
   - repo: local
