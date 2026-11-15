@@ -61,19 +61,21 @@ func (a *auditor) attach(e *ports.AuditEntry, ds []domain.Delivery) {
 }
 
 func auditDelivery(d domain.Delivery) ports.AuditDelivery {
-	a := ports.AuditDelivery{Route: d.Route, Destination: d.Destination, Endpoint: d.Endpoint, Address: d.Address,
-		Loud: d.Message.Loud, Priority: d.Message.Priority, Message: d.Message.Markdown, Status: "pending"}
+	a := ports.AuditDelivery{
+		Route: d.Route, Destination: d.Destination, Endpoint: d.Endpoint, Address: d.Address,
+		Loud: d.Message.Loud, Priority: d.Message.Priority, Message: d.Message.Markdown, Status: "pending",
+	}
 	if d.Digest > 0 {
 		a.Digest = d.Digest.String()
 	}
 	return a
 }
 
-func cut(b []byte, max int) (string, bool) {
-	if len(b) <= max {
+func cut(b []byte, limit int) (string, bool) {
+	if len(b) <= limit {
 		return string(b), false
 	}
-	b = b[:max]
+	b = b[:limit]
 	for len(b) > 0 && !utf8.Valid(b) {
 		b = b[:len(b)-1]
 	}

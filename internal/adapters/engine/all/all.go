@@ -2,5 +2,5 @@
 package all
 
 import (
-	_ "github.com/johnnycube/stellwerk/internal/adapters/engine/cel"
+	_ "github.com/johnnycube/stellwerk/internal/adapters/engine/cel" // registers itself in init
 )

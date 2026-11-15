@@ -38,7 +38,8 @@ type IngestEvents struct {
 var _ ports.IngestEvents = (*IngestEvents)(nil)
 
 func NewIngestEvents(router *domain.Router, heartbeats []domain.Heartbeat, out Enqueuer, coord ports.Coordinator,
-	rec ports.Recorder, clock ports.Clock, p domain.DeliveryPolicy, log *slog.Logger) *IngestEvents {
+	rec ports.Recorder, clock ports.Clock, p domain.DeliveryPolicy, log *slog.Logger,
+) *IngestEvents {
 	u := &IngestEvents{out: out, coord: coord, rec: rec, clock: clock, policy: p, log: log}
 	u.SetRouting(router, heartbeats)
 	return u
@@ -236,8 +237,10 @@ func (u *IngestEvents) record(ev *domain.Event, res domain.Result, verdict strin
 	if res.DroppedBy != "" {
 		routes = append(routes, res.DroppedBy)
 	}
-	u.rec.RecordEvent(ports.EventRecord{Time: u.clock.Now(), Node: u.coord.NodeID(), Source: ev.Source, Status: ev.Status,
-		Routes: routes, Dropped: res.DroppedBy, Verdict: verdict})
+	u.rec.RecordEvent(ports.EventRecord{
+		Time: u.clock.Now(), Node: u.coord.NodeID(), Source: ev.Source, Status: ev.Status,
+		Routes: routes, Dropped: res.DroppedBy, Verdict: verdict,
+	})
 }
 
 // DedupeKey identifies a payload: the event's own key if it has one,

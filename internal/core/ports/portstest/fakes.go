@@ -62,9 +62,10 @@ var ErrDown = errors.New("fake sender down")
 
 func NewSender() *Sender { return &Sender{Err: ErrDown, attempted: make(chan struct{}, 1000)} }
 
-func (s *Sender) FailNext(n int)             { s.mu.Lock(); s.failNext = n; s.mu.Unlock() }
-func (s *Sender) FailAll(on bool)            { s.mu.Lock(); s.failAll = on; s.mu.Unlock() }
-func (s *Sender) Block()                     { s.mu.Lock(); s.block = make(chan struct{}); s.mu.Unlock() }
+func (s *Sender) FailNext(n int)  { s.mu.Lock(); s.failNext = n; s.mu.Unlock() }
+func (s *Sender) FailAll(on bool) { s.mu.Lock(); s.failAll = on; s.mu.Unlock() }
+func (s *Sender) Block()          { s.mu.Lock(); s.block = make(chan struct{}); s.mu.Unlock() }
+
 func (s *Sender) Release()                   { s.mu.Lock(); close(s.block); s.block = nil; s.mu.Unlock() }
 func (s *Sender) Attempted() <-chan struct{} { return s.attempted }
 

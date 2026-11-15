@@ -98,7 +98,7 @@ type node struct {
 	h      http.Handler
 }
 
-func newNode(t *testing.T, ctx context.Context, id, mode, cluster string) *node {
+func newNode(ctx context.Context, t *testing.T, id, mode, cluster string) *node {
 	t.Helper()
 	y := strings.NewReplacer("%NODE%", id, "%MODE%", mode, "%CLUSTER%", cluster).Replace(testConfig)
 	cfg, err := config.Parse([]byte(y))
@@ -134,7 +134,7 @@ const amCritical = `{"version":"4","status":"firing","receiver":"r",
 func TestSyncDeliveryToTwoTargets(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	rec := post(n.h, "/in/alertmanager", "am", amCritical)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body)
@@ -158,7 +158,7 @@ func TestSyncDeliveryToTwoTargets(t *testing.T) {
 func TestSyncFailureMakesSenderRetry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	n.hook.fail = true
 	rec := post(n.h, "/in/alertmanager", "am", amCritical)
 	if rec.Code != http.StatusBadGateway || !strings.Contains(rec.Body.String(), "target down") {
@@ -181,7 +181,7 @@ func TestSyncFailureMakesSenderRetry(t *testing.T) {
 func TestAsyncAndRouting(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "async", "")
+	n := newNode(ctx, t, "a", "async", "")
 	if rec := post(n.h, "/in/sonarr", "so", `{"eventType":"Download","series":{"title":"S"}}`); rec.Code != http.StatusAccepted {
 		t.Fatalf("async: %d", rec.Code)
 	}
@@ -207,7 +207,7 @@ func TestAsyncAndRouting(t *testing.T) {
 func TestAuth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	cases := []struct {
 		path, token string
 		code        int
@@ -232,7 +232,7 @@ func TestAuth(t *testing.T) {
 func TestHeartbeatConsumed(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	rec := post(n.h, "/in/alertmanager", "am", `{"status":"firing","commonLabels":{"alertname":"Watchdog"},"alerts":[]}`)
 	if rec.Code != http.StatusNoContent || len(n.matrix.list()) != 0 {
 		t.Fatalf("heartbeat: %d", rec.Code)
@@ -269,14 +269,14 @@ func TestHighAvailabilityTwoNodes(t *testing.T) {
 	defer sa.Close()
 	defer sb.Close()
 	cl := "ha: { enabled: true, secret: s, interval: 50ms, peers: [ { id: a, url: \"" + sa.URL + "\" }, { id: b, url: \"" + sb.URL + "\" } ] }"
-	a := newNode(t, ctx, "a", "sync", cl)
-	b := newNode(t, ctx, "b", "sync", cl)
+	a := newNode(ctx, t, "a", "sync", cl)
+	b := newNode(ctx, t, "b", "sync", cl)
 	mu.Lock()
 	ha, hb = a.h, b.h
 	mu.Unlock()
 
 	deadline := time.Now().Add(3 * time.Second)
-	for !(a.app.Coord.IsLeader() && !b.app.Coord.IsLeader()) {
+	for !a.app.Coord.IsLeader() || b.app.Coord.IsLeader() {
 		if time.Now().After(deadline) {
 			t.Fatal("no leader agreement")
 		}
@@ -336,7 +336,7 @@ func dedupeKeyFor(t *testing.T, body string) string {
 func TestUIFlowsAndSimulate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	ui := n.app.HTTP.UIHandler()
 
 	rec := httptest.NewRecorder()
@@ -409,7 +409,7 @@ type simulateResponse struct {
 func TestHADisabledIgnoresPeers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "ha: { peers: [ { id: a, url: http://127.0.0.1:1 }, { id: b, url: http://127.0.0.1:2 } ] }")
+	n := newNode(ctx, t, "a", "sync", "ha: { peers: [ { id: a, url: http://127.0.0.1:1 }, { id: b, url: http://127.0.0.1:2 } ] }")
 	if st := n.app.Coord.Status(); st.Enabled || !n.app.Coord.IsLeader() {
 		t.Errorf("ha should be off: %+v", st)
 	}
@@ -485,7 +485,7 @@ func TestShutdownDrainsAcceptedWork(t *testing.T) {
 func TestMetricsCountWhatHappens(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	post(n.h, "/in/alertmanager", "am", amCritical)
 	post(n.h, "/in/alertmanager", "am", `{"status":"firing","commonLabels":{"alertname":"Watchdog"},"alerts":[]}`)
 	var b strings.Builder
@@ -509,7 +509,7 @@ func TestMetricsCountWhatHappens(t *testing.T) {
 func TestAuditLogThroughTheWholeStack(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	n.hook.fail = true // one destination fails, with retries
 	post(n.h, "/in/alertmanager", "am", amCritical)
 	post(n.h, "/in/alertmanager", "am", `{"nope":1}`) // bad payload
@@ -575,7 +575,7 @@ func TestAuditLogThroughTheWholeStack(t *testing.T) {
 func TestAuditCanBeSwitchedOff(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "audit: { enabled: false }")
+	n := newNode(ctx, t, "a", "sync", "audit: { enabled: false }")
 	post(n.h, "/in/alertmanager", "am", amCritical)
 	if n.app.Audit != nil || n.app.ReadAudit != nil {
 		t.Fatal("no audit store when switched off")
@@ -719,7 +719,7 @@ func uiDo(h http.Handler, method, path, body string, action bool) *httptest.Resp
 func TestReload(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	base := strings.NewReplacer("%NODE%", "a", "%MODE%", "sync", "%CLUSTER%", "").Replace(testConfig)
 	load := func(y string) func() (*config.Config, error) {
 		return func() (*config.Config, error) { return config.Parse([]byte(y)) }
@@ -753,7 +753,7 @@ func TestReload(t *testing.T) {
 		}
 	}
 	before := len(n.media.list())
-	if rec := post(n.h, "/in/alertmanager", "am", strings.Replace(amCritical, "Disk", "Disk2", -1)); rec.Code != 200 || len(n.media.list()) != before+1 {
+	if rec := post(n.h, "/in/alertmanager", "am", strings.ReplaceAll(amCritical, "Disk", "Disk2")); rec.Code != 200 || len(n.media.list()) != before+1 {
 		t.Error("a refused reload keeps the last good config")
 	}
 	n.app.Load = nil
@@ -768,7 +768,7 @@ func TestReload(t *testing.T) {
 func TestSilencesAndResendOverTheUI(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	ui := n.app.HTTP.UIHandler()
 	rec := uiDo(ui, "POST", "/api/silences", `{"matchers":"source=alertmanager","for":"1h","comment":"maintenance"}`, true)
 	if rec.Code != 200 {
@@ -799,7 +799,7 @@ func TestSilencesAndResendOverTheUI(t *testing.T) {
 	n.matrix.mu.Lock()
 	n.matrix.fail = true
 	n.matrix.mu.Unlock()
-	post(n.h, "/in/alertmanager", "am", strings.Replace(amCritical, "Disk", "CPU", -1))
+	post(n.h, "/in/alertmanager", "am", strings.ReplaceAll(amCritical, "Disk", "CPU"))
 	failed := n.app.Audit.List(ports.AuditQuery{Verdict: ports.AuditFailed})
 	if len(failed) != 1 {
 		t.Fatalf("%+v", failed)
@@ -916,11 +916,13 @@ tests:
 		t.Errorf("failed %d\n%s", failed, out.String())
 	}
 	o := out.String()
-	for _, want := range []string{"ok    critical pages", "ok    sonarr tests are dropped", "ok    watchdog is a heartbeat", "FAIL  wrong on purpose",
+	for _, want := range []string{
+		"ok    critical pages", "ok    sonarr tests are dropped", "ok    watchdog is a heartbeat", "FAIL  wrong on purpose",
 		`to: got [media], want [critical]`, `contains "nope": the message to media is:`, "loud: the message to media is loud=false",
 		`priority: the message to media has "normal", want "urgent"`, "unmatched: but it went to [media]", `heartbeat: got "", want "x"`,
 		`dropped_by: got "", want "y"`, "routes: got [media], want [z]", "FAIL  broken body", "the decoder refuses the body",
-		`no source "missing"`, "3 of 6 tests passed"} {
+		`no source "missing"`, "3 of 6 tests passed",
+	} {
 		if !strings.Contains(o, want) {
 			t.Errorf("missing %q in\n%s", want, o)
 		}
@@ -946,7 +948,7 @@ func (c *checkedSender) Check(_ context.Context, rooms []string) []string {
 func TestChatCommandsAndEndpointHealth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	n := newNode(t, ctx, "a", "sync", "")
+	n := newNode(ctx, t, "a", "sync", "")
 	if _, ok := n.app.chatCommand(ctx, "$1", "@me:x", "hello"); ok {
 		t.Error("not a command")
 	}

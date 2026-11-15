@@ -116,11 +116,11 @@ func (e *Email) send(ctx context.Context, address string, msg domain.Message) er
 		deadline = d
 	}
 	addr := net.JoinHostPort(e.s.Host, strconv.Itoa(e.s.Port))
-	tlsCfg := &tls.Config{ServerName: e.s.Host, InsecureSkipVerify: e.s.InsecureSkipVerify, MinVersion: tls.VersionTLS12}
+	tlsCfg := &tls.Config{ServerName: e.s.Host, InsecureSkipVerify: e.s.InsecureSkipVerify, MinVersion: tls.VersionTLS12} //nolint:gosec // opt-in setting for relays with self-signed certificates
 	dialer := &net.Dialer{Deadline: deadline}
 	var conn net.Conn
 	if e.s.TLS == "implicit" {
-		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsCfg)
+		conn, err = (&tls.Dialer{NetDialer: dialer, Config: tlsCfg}).DialContext(ctx, "tcp", addr)
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	}

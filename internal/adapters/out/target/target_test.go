@@ -1,12 +1,13 @@
 package target
 
 import (
-	"github.com/johnnycube/stellwerk/internal/core/ports"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/johnnycube/stellwerk/internal/core/ports"
 
 	"go.yaml.in/yaml/v3"
 )

@@ -73,8 +73,10 @@ func (u *RunCanary) Run(ctx context.Context) ports.CanaryResult {
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
 	res := ports.CanaryResult{Time: u.clock.Now(), Marker: "canary-" + hex.EncodeToString(b), OK: true}
-	msg := domain.Message{Markdown: fmt.Sprintf("🐤 Canary `%s`: stellwerk checks that messages get here.", res.Marker),
-		Priority: domain.PriorityLow, Source: "stellwerk", Route: "canary"}
+	msg := domain.Message{
+		Markdown: fmt.Sprintf("🐤 Canary `%s`: stellwerk checks that messages get here.", res.Marker),
+		Priority: domain.PriorityLow, Source: "stellwerk", Route: "canary",
+	}
 
 	ds := make([]domain.Delivery, 0, len(u.spec.To))
 	for _, alias := range u.spec.To {
@@ -147,8 +149,10 @@ func (u *RunCanary) Run(ctx context.Context) ports.CanaryResult {
 // alarm reports a failed check to canary.alert, or to the fallbacks of the
 // destination that failed.
 func (u *RunCanary) alarm(d domain.Delivery, what string) {
-	msg := domain.Message{Markdown: fmt.Sprintf("🚨 **Canary to `%s` failed**: the test message %s", d.Destination, what),
-		Loud: true, Priority: domain.PriorityHigh, Source: "stellwerk", Route: "canary"}
+	msg := domain.Message{
+		Markdown: fmt.Sprintf("🚨 **Canary to `%s` failed**: the test message %s", d.Destination, what),
+		Loud:     true, Priority: domain.PriorityHigh, Source: "stellwerk", Route: "canary",
+	}
 	var targets []domain.Delivery
 	for _, alias := range u.spec.Alert {
 		targets = append(targets, u.router.Load().Delivery("canary", alias, msg))

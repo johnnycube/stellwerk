@@ -93,8 +93,10 @@ type BreakerState struct {
 var _ Enqueuer = (*DeliverMessages)(nil)
 
 func NewDeliverMessages(senders map[string]ports.Sender, p domain.DeliveryPolicy, rec ports.Recorder, log *slog.Logger) *DeliverMessages {
-	d := &DeliverMessages{queues: map[string]chan job{}, senders: senders, maxRetries: max(p.MaxRetries, 1), maxBackoff: p.MaxBackoff,
-		rec: rec, log: log, clock: ports.SystemClock{}, policy: p, breakers: map[string]*breaker{}}
+	d := &DeliverMessages{
+		queues: map[string]chan job{}, senders: senders, maxRetries: max(p.MaxRetries, 1), maxBackoff: p.MaxBackoff,
+		rec: rec, log: log, clock: ports.SystemClock{}, policy: p, breakers: map[string]*breaker{},
+	}
 	if d.maxBackoff <= 0 {
 		d.maxBackoff = time.Minute
 	}
@@ -152,7 +154,7 @@ func (d *DeliverMessages) Enqueue(del domain.Delivery) (<-chan error, error) {
 	}
 	if d.outbox != nil {
 		if err := d.outbox.Put(del); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrSpool, err)
+			return nil, fmt.Errorf("%w: %w", ErrSpool, err)
 		}
 	}
 	j := job{d: del, done: make(chan error, 1)}
@@ -267,7 +269,7 @@ func (d *DeliverMessages) worker(ctx context.Context, s ports.Sender, q chan job
 func (d *DeliverMessages) finish(ctx context.Context, j job, err error) {
 	interrupted := err != nil && ctx.Err() != nil
 	if interrupted {
-		err = fmt.Errorf("%w: %v", ErrInterrupted, err)
+		err = fmt.Errorf("%w: %w", ErrInterrupted, err)
 	}
 	var fallbacks []<-chan error
 	if err != nil && !interrupted && !errors.Is(err, ErrExpired) {
@@ -425,7 +427,7 @@ func (d *DeliverMessages) audited(del domain.Delivery) bool {
 // jitter spreads retries by ±20 %, so many failed deliveries do not all
 // hit a recovering backend at the same moment.
 func jitter(d time.Duration) time.Duration {
-	return time.Duration(float64(d) * (0.8 + 0.4*mrand.Float64()))
+	return time.Duration(float64(d) * (0.8 + 0.4*mrand.Float64())) //nolint:gosec // jitter, not security
 }
 
 func newID() string {

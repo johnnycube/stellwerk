@@ -21,8 +21,10 @@ type Expressions struct {
 // Event is what the expressions see: source "am", status "firing",
 // label env=prod and data {"items": [{"n": 1}, {"n": 3}]}.
 func Event() *domain.Event {
-	return &domain.Event{Source: "am", Status: "firing", Labels: map[string]string{"env": "prod"},
-		Data: map[string]any{"items": []any{map[string]any{"n": json.Number("1")}, map[string]any{"n": json.Number("3")}}}}
+	return &domain.Event{
+		Source: "am", Status: "firing", Labels: map[string]string{"env": "prod"},
+		Data: map[string]any{"items": []any{map[string]any{"n": json.Number("1")}, map[string]any{"n": json.Number("3")}}},
+	}
 }
 
 func EngineContract(t *testing.T, e domain.Engine, x Expressions) {

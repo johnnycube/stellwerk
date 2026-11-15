@@ -61,12 +61,12 @@ var (
 )
 
 func (g *schemaGen) schema(t reflect.Type) map[string]any {
-	switch {
-	case t == durationType:
+	switch t {
+	case durationType:
 		return map[string]any{"type": "string", "pattern": `^(0|-?([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$`, "examples": []string{"30s", "10m", "24h"}}
-	case t == nodeType:
+	case nodeType:
 		return map[string]any{} // free form, depends on the type or kind
-	case t == stringListType:
+	case stringListType:
 		return map[string]any{"oneOf": []any{map[string]any{"type": "string"}, map[string]any{"type": "array", "items": map[string]any{"type": "string"}}}}
 	}
 	switch t.Kind() {
@@ -91,8 +91,9 @@ func (g *schemaGen) schema(t reflect.Type) map[string]any {
 			g.defs[name] = g.object(t)
 		}
 		return map[string]any{"$ref": "#/$defs/" + name}
+	default: // kinds the config does not use
+		return map[string]any{}
 	}
-	return map[string]any{}
 }
 
 func (g *schemaGen) object(t reflect.Type) map[string]any {

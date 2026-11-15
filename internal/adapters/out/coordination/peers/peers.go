@@ -30,10 +30,9 @@ import (
 )
 
 type peer struct {
-	id, url  string
-	lastOK   time.Time
-	lastErr  string
-	reported string // id the peer reported, to catch miswired URLs
+	id, url string
+	lastOK  time.Time
+	lastErr string
 }
 
 // Settings configures the peers coordinator.
@@ -62,8 +61,10 @@ var _ ports.Coordinator = (*Peers)(nil)
 
 func New(cfg Settings, log *slog.Logger) *Peers {
 	nodeID := cfg.NodeID
-	p := &Peers{id: nodeID, secret: cfg.Secret, interval: cfg.Interval, st: memstate.New(),
-		client: &http.Client{Timeout: cfg.Interval}, log: log.With("component", "cluster")}
+	p := &Peers{
+		id: nodeID, secret: cfg.Secret, interval: cfg.Interval, st: memstate.New(),
+		client: &http.Client{Timeout: cfg.Interval}, log: log.With("component", "cluster"),
+	}
 	for _, c := range cfg.Peers {
 		if c.ID != nodeID {
 			p.peers = append(p.peers, &peer{id: c.ID, url: strings.TrimRight(c.URL, "/")})
@@ -117,8 +118,10 @@ func (p *Peers) Status() ports.ClusterStatus {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := time.Now()
-	st := ports.ClusterStatus{Enabled: true, NodeID: p.id, Leader: leader,
-		Peers: []ports.PeerStatus{{ID: p.id, Self: true, Alive: true, LastSeen: now}}}
+	st := ports.ClusterStatus{
+		Enabled: true, NodeID: p.id, Leader: leader,
+		Peers: []ports.PeerStatus{{ID: p.id, Self: true, Alive: true, LastSeen: now}},
+	}
 	for _, pe := range p.peers {
 		st.Peers = append(st.Peers, ports.PeerStatus{ID: pe.id, URL: pe.url, Alive: p.alive(pe, now), LastSeen: pe.lastOK, Error: pe.lastErr})
 	}

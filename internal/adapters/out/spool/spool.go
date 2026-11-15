@@ -7,6 +7,7 @@
 package spool
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -15,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // database/sql driver
 
 	"github.com/johnnycube/stellwerk/internal/core/domain"
 	"github.com/johnnycube/stellwerk/internal/core/ports"
@@ -28,6 +29,9 @@ type SQLite struct {
 }
 
 var _ ports.Outbox = (*SQLite)(nil)
+
+// bg: spool writes must finish even when the caller gave up, durability is the point.
+var bg = context.Background()
 
 // Open opens or creates the spool file.
 func Open(path string) (*SQLite, error) {
@@ -42,7 +46,7 @@ func Open(path string) (*SQLite, error) {
 		return nil, fmt.Errorf("spool: %w", err)
 	}
 	db.SetMaxOpenConns(1) // one writer, no lock fights
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS deliveries (
+	if _, err := db.ExecContext(bg, `CREATE TABLE IF NOT EXISTS deliveries (
 		seq     INTEGER PRIMARY KEY AUTOINCREMENT,
 		id      TEXT NOT NULL UNIQUE,
 		created INTEGER NOT NULL,
@@ -51,7 +55,7 @@ func Open(path string) (*SQLite, error) {
 		db.Close()
 		return nil, fmt.Errorf("spool %s: %w", path, err)
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS silences (id TEXT PRIMARY KEY, body BLOB NOT NULL)`); err != nil {
+	if _, err := db.ExecContext(bg, `CREATE TABLE IF NOT EXISTS silences (id TEXT PRIMARY KEY, body BLOB NOT NULL)`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("spool %s: %w", path, err)
 	}
@@ -67,19 +71,19 @@ func (s *SQLite) Put(d domain.Delivery) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`INSERT INTO deliveries (id, created, version, body) VALUES (?, ?, ?, ?)
+	_, err = s.db.ExecContext(bg, `INSERT INTO deliveries (id, created, version, body) VALUES (?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET body = excluded.body, version = excluded.version`,
 		d.ID, time.Now().UnixMilli(), version, body)
 	return err
 }
 
 func (s *SQLite) Done(id string) error {
-	_, err := s.db.Exec(`DELETE FROM deliveries WHERE id = ?`, id)
+	_, err := s.db.ExecContext(bg, `DELETE FROM deliveries WHERE id = ?`, id)
 	return err
 }
 
 func (s *SQLite) Pending() ([]domain.Delivery, error) {
-	rows, err := s.db.Query(`SELECT id, version, body FROM deliveries ORDER BY seq`)
+	rows, err := s.db.QueryContext(bg, `SELECT id, version, body FROM deliveries ORDER BY seq`)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +113,7 @@ func (s *SQLite) Pending() ([]domain.Delivery, error) {
 // Len counts what is not done yet, for metrics.
 func (s *SQLite) Len() int {
 	var n int
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM deliveries`).Scan(&n)
+	_ = s.db.QueryRowContext(bg, `SELECT COUNT(*) FROM deliveries`).Scan(&n)
 	return n
 }
 
@@ -136,9 +140,11 @@ type record struct {
 }
 
 func toRecord(d domain.Delivery) record {
-	r := record{ID: d.ID, Route: d.Route, Destination: d.Destination, Endpoint: d.Endpoint, Address: d.Address,
+	r := record{
+		ID: d.ID, Route: d.Route, Destination: d.Destination, Endpoint: d.Endpoint, Address: d.Address,
 		Markdown: d.Message.Markdown, Loud: d.Message.Loud, Priority: d.Message.Priority, Mentions: d.Message.Mentions,
-		Source: d.Message.Source, MsgRoute: d.Message.Route, EntryID: d.EntryID, Index: d.Index, FallbackFor: d.FallbackFor}
+		Source: d.Message.Source, MsgRoute: d.Message.Route, EntryID: d.EntryID, Index: d.Index, FallbackFor: d.FallbackFor,
+	}
 	if !d.Created.IsZero() {
 		r.Created = d.Created.UnixMilli()
 	}
@@ -149,9 +155,11 @@ func toRecord(d domain.Delivery) record {
 }
 
 func (r record) domain() domain.Delivery {
-	d := domain.Delivery{ID: r.ID, Route: r.Route, Destination: r.Destination, Endpoint: r.Endpoint, Address: r.Address,
+	d := domain.Delivery{
+		ID: r.ID, Route: r.Route, Destination: r.Destination, Endpoint: r.Endpoint, Address: r.Address,
 		Message: domain.Message{Markdown: r.Markdown, Loud: r.Loud, Priority: r.Priority, Mentions: r.Mentions, Source: r.Source, Route: r.MsgRoute},
-		EntryID: r.EntryID, Index: r.Index, FallbackFor: r.FallbackFor}
+		EntryID: r.EntryID, Index: r.Index, FallbackFor: r.FallbackFor,
+	}
 	if r.Created != 0 {
 		d.Created = time.UnixMilli(r.Created).UTC()
 	}
@@ -174,17 +182,17 @@ func (s *Silences) Save(x domain.Silence) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`INSERT INTO silences (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body`, x.ID, body)
+	_, err = s.db.ExecContext(bg, `INSERT INTO silences (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body`, x.ID, body)
 	return err
 }
 
 func (s *Silences) Delete(id string) error {
-	_, err := s.db.Exec(`DELETE FROM silences WHERE id = ?`, id)
+	_, err := s.db.ExecContext(bg, `DELETE FROM silences WHERE id = ?`, id)
 	return err
 }
 
 func (s *Silences) All() ([]domain.Silence, error) {
-	rows, err := s.db.Query(`SELECT body FROM silences ORDER BY id`)
+	rows, err := s.db.QueryContext(bg, `SELECT body FROM silences ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}

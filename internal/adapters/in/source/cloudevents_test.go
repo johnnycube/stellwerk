@@ -27,8 +27,10 @@ const ceSample = `{"specversion":"1.0","id":"b1","source":"/backup/nas","type":"
  "time":"2026-11-15T03:00:00Z","severity":"warning","attempt":3,"datacontenttype":"application/json","data":{"message":"42 GB","state":"ok"}}`
 
 func TestCloudEventsStructured(t *testing.T) {
-	evs, err := ce(t, "").Decode(Input{Source: "nas", Body: []byte(ceSample),
-		Header: http.Header{"Content-Type": {"application/cloudevents+json; charset=utf-8"}}})
+	evs, err := ce(t, "").Decode(Input{
+		Source: "nas", Body: []byte(ceSample),
+		Header: http.Header{"Content-Type": {"application/cloudevents+json; charset=utf-8"}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +38,10 @@ func TestCloudEventsStructured(t *testing.T) {
 	if ev.Kind != "cloudevents" || ev.Source != "nas" || ev.Key != "/backup/nas#b1" {
 		t.Errorf("%+v", ev)
 	}
-	for k, want := range map[string]string{"type": "org.example.backup.finished", "source": "/backup/nas", "subject": "nightly",
-		"severity": "warning", "attempt": "3", "specversion": "1.0", "time": "2026-11-15T03:00:00Z"} {
+	for k, want := range map[string]string{
+		"type": "org.example.backup.finished", "source": "/backup/nas", "subject": "nightly",
+		"severity": "warning", "attempt": "3", "specversion": "1.0", "time": "2026-11-15T03:00:00Z",
+	} {
 		if ev.Labels[k] != want {
 			t.Errorf("label %s=%q, want %q", k, ev.Labels[k], want)
 		}

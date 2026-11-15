@@ -203,12 +203,14 @@ func ClockContract(t *testing.T, c ports.Clock) {
 func AuditStoreContract(t *testing.T, newStore func() ports.AuditStore) {
 	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	pending := func(id string) ports.AuditEntry {
-		return ports.AuditEntry{ID: id, Time: at, Source: "am", Verdict: ports.AuditPending, Labels: map[string]string{"severity": "critical"},
+		return ports.AuditEntry{
+			ID: id, Time: at, Source: "am", Verdict: ports.AuditPending, Labels: map[string]string{"severity": "critical"},
 			Payload: `{"alert":"Disk full"}`,
 			Deliveries: []ports.AuditDelivery{
 				{Route: "crit", Destination: "critical", Endpoint: "matrix/alerts", Status: "pending", Message: "disk"},
 				{Route: "crit", Destination: "pager", Endpoint: "hook/default", Status: "pending"},
-			}}
+			},
+		}
 	}
 	t.Run("record and get return copies", func(t *testing.T) {
 		s := newStore()
@@ -298,7 +300,7 @@ func AuditStoreContract(t *testing.T, newStore func() ports.AuditStore) {
 			t.Errorf("verdict %s", e.Verdict)
 		}
 	})
-	t.Run("unknown ids and indexes are ignored", func(t *testing.T) {
+	t.Run("unknown ids and indexes are ignored", func(_ *testing.T) {
 		s := newStore()
 		s.Attempt("nope", 0, ports.AuditAttempt{})
 		s.Finish("nope", 0, at, nil)
@@ -346,11 +348,15 @@ func AuditStoreContract(t *testing.T, newStore func() ports.AuditStore) {
 // ones stored (reopen), so durable stores prove they survive a restart.
 func OutboxContract(t *testing.T, newOutbox func(t *testing.T) ports.Outbox) {
 	d := func(id string) domain.Delivery {
-		return domain.Delivery{ID: id, Route: "crit", Destination: "critical", Endpoint: "matrix/alerts", Address: "!r:x",
+		return domain.Delivery{
+			ID: id, Route: "crit", Destination: "critical", Endpoint: "matrix/alerts", Address: "!r:x",
 			EntryID: "node-1", Index: 1, Created: time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC),
 			Message: domain.Message{Markdown: "**disk** full", Loud: true, Priority: domain.PriorityUrgent, Mentions: []string{"@me:x"}, Source: "am", Route: "crit"},
-			Fallback: []domain.Delivery{{Route: "crit", Destination: "mail", Endpoint: "mail/default", Address: "me@x",
-				Message: domain.Message{Markdown: "fb"}, FallbackFor: "critical"}}}
+			Fallback: []domain.Delivery{{
+				Route: "crit", Destination: "mail", Endpoint: "mail/default", Address: "me@x",
+				Message: domain.Message{Markdown: "fb"}, FallbackFor: "critical",
+			}},
+		}
 	}
 	t.Run("put, pending in order, done", func(t *testing.T) {
 		o := newOutbox(t)
@@ -414,8 +420,10 @@ func OutboxContract(t *testing.T, newOutbox func(t *testing.T) ports.Outbox) {
 // OutboxContract, calling newStore again with the same t reopens.
 func SilenceStoreContract(t *testing.T, newStore func(t *testing.T) ports.SilenceStore) {
 	at := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
-	x := domain.Silence{ID: "s1", Match: domain.Match{Source: "k8s*", Status: "firing", Labels: map[string]string{"severity": "warning"}},
-		Starts: at, Ends: at.Add(time.Hour), CreatedBy: "@me:x", Comment: "upgrade"}
+	x := domain.Silence{
+		ID: "s1", Match: domain.Match{Source: "k8s*", Status: "firing", Labels: map[string]string{"severity": "warning"}},
+		Starts: at, Ends: at.Add(time.Hour), CreatedBy: "@me:x", Comment: "upgrade",
+	}
 	t.Run("save, all, delete", func(t *testing.T) {
 		s := newStore(t)
 		if err := s.Save(x); err != nil {

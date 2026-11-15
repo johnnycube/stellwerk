@@ -1,0 +1,23 @@
+# .fleetlint.yaml: https://github.com/fleetlint/fleetlint
+version: 1
+extends:
+  - fleetlint:recommended
+facts:
+  tier: 1
+  visibility: public   # published as a public project
+  artifacts:   # what the release publishes, as detected at init
+    - kind: helm-chart
+      name: "dist/stellwerk-$v.tgz"
+      workflows: [.github/workflows/release.yml]
+    - kind: image
+      name: "ghcr.io/${{ github.repository }}"
+      workflows: [.github/workflows/release.yml]
+    - kind: release-files
+      workflows: [.github/workflows/release.yml]
+scopes:   # each directory is checked as a project of the stacks listed, as detected at init
+  - path: .
+    stacks: [go]
+# discovered: forge=github visibility=unknown tier=1 (configured) layout=single release=yes taskrunner=none container=none
+# The stacks and artifacts listed above are what fleetlint checks: the lists replace detection, and `fleetlint check`
+# notes what detection finds beyond them. Everything else is re-detected on every run; pin tier or visibility under
+# `facts:` when detection is wrong.

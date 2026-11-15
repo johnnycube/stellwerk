@@ -63,8 +63,10 @@ func TestAlertmanagerRejectsGarbage(t *testing.T) {
 
 func TestGeneric(t *testing.T) {
 	d, _ := New("generic", opts(t, "status_field: eventType\nlabels: { show: series.title }"))
-	evs, err := d.Decode(Input{Source: "sonarr", Body: []byte(`{"eventType":"Download","series":{"title":"Severance"}}`),
-		Query: url.Values{"host": {"nas"}, "token": {"secret"}}})
+	evs, err := d.Decode(Input{
+		Source: "sonarr", Body: []byte(`{"eventType":"Download","series":{"title":"Severance"}}`),
+		Query: url.Values{"host": {"nas"}, "token": {"secret"}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

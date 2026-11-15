@@ -25,6 +25,7 @@ import (
 const module = "github.com/johnnycube/stellwerk/"
 
 func root(t *testing.T) string {
+	t.Helper()
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..")
 }

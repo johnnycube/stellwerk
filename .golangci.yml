@@ -1,0 +1,50 @@
+version: "2"
+run:
+  timeout: 5m
+  build-tags: [goolm]
+formatters:
+  enable: [gofumpt, goimports]
+linters:
+  default: none
+  enable: [errcheck, govet, staticcheck, unused, ineffassign, errorlint, nilerr, bodyclose, noctx, gosec, revive, gocognit, funlen, exhaustive, unparam, godox, nolintlint, misspell, unconvert, dupl]
+  settings:
+    gocognit: { min-complexity: 15 }
+    funlen: { lines: 60, statements: 40 }
+    dupl: { threshold: 120 }
+    nolintlint: { require-explanation: true, require-specific: true }
+    exhaustive: { default-signifies-exhaustive: true }
+    errcheck:
+      # Fire-and-forget writers and read-side closers: a failed write to a broken
+      # pipe or a failed close after reading is not actionable.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (net/http.ResponseWriter).Write
+        - (io.ReadCloser).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (net.Conn).Close
+        - (*net/smtp.Client).Close
+    gosec:
+      excludes: [G104]   # unhandled errors are errcheck's job, with its exclusions
+    revive:
+      enable-default-rules: true
+      rules:
+        # internal/ packages are not a public API; names carry the meaning
+        - name: exported
+          disabled: true
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [funlen, gocognit, gosec, dupl, noctx, bodyclose, errcheck]
+      - path: _test\.go
+        linters: [revive]
+        text: unused-parameter
+      # the config loader reads the files the operator points it at, by design
+      - path: internal/config/sources\.go
+        linters: [gosec]
+        text: G304
+      # contract suites are test code that adapter tests import
+      - path: internal/(core/ports/portstest|adapters/engine/enginetest)/
+        linters: [funlen, gocognit, dupl]

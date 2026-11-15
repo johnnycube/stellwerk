@@ -24,10 +24,12 @@ func TestSelfPing(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	var healthy = true
+	healthy := true
 	var hmu sync.Mutex
-	p := &SelfPing{URL: srv.URL + "/uuid", Every: 20 * time.Millisecond, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Health: func() (bool, string) { hmu.Lock(); defer hmu.Unlock(); return healthy, "matrix/alerts not ready" }}
+	p := &SelfPing{
+		URL: srv.URL + "/uuid", Every: 20 * time.Millisecond, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Health: func() (bool, string) { hmu.Lock(); defer hmu.Unlock(); return healthy, "matrix/alerts not ready" },
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go p.Run(ctx)
 	time.Sleep(30 * time.Millisecond)

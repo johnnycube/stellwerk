@@ -171,8 +171,10 @@ func between(l string) string {
 func selfSigned(t *testing.T) tls.Certificate {
 	t.Helper()
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	tmpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "127.0.0.1"},
-		IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour)}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "127.0.0.1"},
+		IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
+	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
@@ -233,8 +235,10 @@ func TestEmailStartTLSWithAuth(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 	d := got[0].data
-	for _, want := range []string{"Subject: =?utf-8?q?", "X-Priority: 1", "X-Stellwerk-Route: crit", "Auto-Submitted: auto-generated",
-		"Content-Type: text/plain; charset=utf-8", "**Disk full**", "\r\n.\r\n", "sent by stellwerk on n1"} {
+	for _, want := range []string{
+		"Subject: =?utf-8?q?", "X-Priority: 1", "X-Stellwerk-Route: crit", "Auto-Submitted: auto-generated",
+		"Content-Type: text/plain; charset=utf-8", "**Disk full**", "\r\n.\r\n", "sent by stellwerk on n1",
+	} {
 		if !strings.Contains(d, want) {
 			t.Errorf("missing %q in\n%s", want, d)
 		}

@@ -24,9 +24,9 @@ func compileMatcher(expr string) (matcher, error) {
 	return matcher{re: re, neg: neg}, err
 }
 
-// compiledMatch is a Match with its regexes compiled. Routes and silences
+// CompiledMatch is a Match with its regexes compiled. Routes and silences
 // use it.
-type compiledMatch struct {
+type CompiledMatch struct {
 	m      Match
 	status *matcher
 	labels map[string]matcher
@@ -34,8 +34,8 @@ type compiledMatch struct {
 }
 
 // CompileMatch checks and compiles a Match.
-func CompileMatch(m Match) (*compiledMatch, error) {
-	c := &compiledMatch{m: m, labels: map[string]matcher{}, fields: map[string]matcher{}}
+func CompileMatch(m Match) (*CompiledMatch, error) {
+	c := &CompiledMatch{m: m, labels: map[string]matcher{}, fields: map[string]matcher{}}
 	if _, err := path.Match(m.Source, ""); err != nil {
 		return nil, fmt.Errorf("bad source glob: %w", err)
 	}
@@ -64,7 +64,7 @@ func CompileMatch(m Match) (*compiledMatch, error) {
 }
 
 // Explain reports whether ev matches and, if not, which condition failed.
-func (c *compiledMatch) Explain(ev *Event) (bool, string) {
+func (c *CompiledMatch) Explain(ev *Event) (bool, string) {
 	if c.m.Source != "" {
 		if ok, _ := path.Match(c.m.Source, ev.Source); !ok {
 			return false, fmt.Sprintf("source %q does not match %q", ev.Source, c.m.Source)
@@ -97,7 +97,7 @@ func (c *compiledMatch) Explain(ev *Event) (bool, string) {
 
 type route struct {
 	cfg   Rule
-	match *compiledMatch
+	match *CompiledMatch
 	expr  Predicate
 }
 
@@ -248,8 +248,10 @@ func (r *Router) Delivery(routeName, alias string, msg Message) Delivery {
 		fb := r.destinations[fbAlias]
 		m := msg
 		m.Markdown = msg.Markdown + FallbackNote(alias) // at the end: titles and subjects stay the alert's
-		out.Fallback = append(out.Fallback, Delivery{Route: routeName, Destination: fbAlias, Endpoint: fb.Endpoint(),
-			Address: fb.Address, Message: m, FallbackFor: alias})
+		out.Fallback = append(out.Fallback, Delivery{
+			Route: routeName, Destination: fbAlias, Endpoint: fb.Endpoint(),
+			Address: fb.Address, Message: m, FallbackFor: alias,
+		})
 	}
 	return out
 }

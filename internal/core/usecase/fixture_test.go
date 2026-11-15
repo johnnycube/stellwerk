@@ -43,16 +43,20 @@ func testSpec() domain.Spec {
 			"pager":    {Alias: "pager", Target: "hook", Account: "default", Address: "/alerts"},
 		},
 		Rules: []domain.Rule{
-			{Name: "critical", Match: domain.Match{Source: "alertmanager", Labels: map[string]string{"severity": "critical"}},
-				To: []string{"critical", "pager"}, Loud: true, Mention: []string{"@me:x"}},
+			{
+				Name: "critical", Match: domain.Match{Source: "alertmanager", Labels: map[string]string{"severity": "critical"}},
+				To: []string{"critical", "pager"}, Loud: true, Mention: []string{"@me:x"},
+			},
 			{Name: "noise", Match: domain.Match{Source: "k8s", Fields: map[string]string{"type": "Normal"}}, Drop: true},
 			{Name: "media", Match: domain.Match{Source: "*arr"}, To: []string{"media"}},
 			{Name: "broken", Match: domain.Match{Source: "broken"}, To: []string{"critical"}, Template: "bad"},
 			{Name: "rest", Match: domain.Match{Source: "x*"}, To: []string{"critical"}},
 		},
 		Heartbeats: []domain.Heartbeat{
-			{Name: "wd", Source: "alertmanager", Labels: map[string]string{"alertname": "Watchdog"}, Timeout: 10 * time.Minute,
-				To: []string{"critical", "pager"}, Mention: []string{"@me:x"}},
+			{
+				Name: "wd", Source: "alertmanager", Labels: map[string]string{"alertname": "Watchdog"}, Timeout: 10 * time.Minute,
+				To: []string{"critical", "pager"}, Mention: []string{"@me:x"},
+			},
 		},
 		Templates: map[string]string{
 			"bad":    `{{ index .Labels 5 }}`, // fails at render time
@@ -64,9 +68,11 @@ func testSpec() domain.Spec {
 
 func newWorld(t *testing.T, mutate ...func(*domain.Spec)) *world {
 	t.Helper()
-	w := &world{t: t, clock: portstest.NewClock(), rec: portstest.NewRecorder(),
+	w := &world{
+		t: t, clock: portstest.NewClock(), rec: portstest.NewRecorder(),
 		alerts: portstest.NewSender(), media: portstest.NewSender(), hook: portstest.NewSender(), spec: testSpec(),
-		audit: portstest.NewAuditStore()}
+		audit: portstest.NewAuditStore(),
+	}
 	for _, m := range mutate {
 		m(&w.spec)
 	}
@@ -93,9 +99,11 @@ func newWorld(t *testing.T, mutate ...func(*domain.Spec)) *world {
 }
 
 func critical() *domain.Event {
-	return &domain.Event{Source: "alertmanager", Kind: "alertmanager", Status: "firing",
+	return &domain.Event{
+		Source: "alertmanager", Kind: "alertmanager", Status: "firing",
 		Labels: map[string]string{"alertname": "Disk", "severity": "critical"},
-		Data:   map[string]any{"alerts": []any{map[string]any{"status": "firing", "annotations": map[string]any{"summary": "Disk full"}}}}}
+		Data:   map[string]any{"alerts": []any{map[string]any{"status": "firing", "annotations": map[string]any{"summary": "Disk full"}}}},
+	}
 }
 
 func watchdog() *domain.Event {

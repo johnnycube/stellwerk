@@ -129,8 +129,10 @@ func TestAuthRequired(t *testing.T) {
 
 func TestPeersCoordinatorContract(t *testing.T) {
 	portstest.CoordinatorContract(t, func(t *testing.T) portstest.CoordinatorUnderTest {
-		p := New(Settings{NodeID: "a", Secret: "s", Interval: 50 * time.Millisecond,
-			Peers: []Peer{{ID: "a", URL: "http://127.0.0.1:1"}, {ID: "b", URL: "http://127.0.0.1:2"}}}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		p := New(Settings{
+			NodeID: "a", Secret: "s", Interval: 50 * time.Millisecond,
+			Peers: []Peer{{ID: "a", URL: "http://127.0.0.1:1"}, {ID: "b", URL: "http://127.0.0.1:2"}},
+		}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 		return portstest.CoordinatorUnderTest{Coordinator: p, Advance: time.Sleep}
 	})
 }

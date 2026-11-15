@@ -67,8 +67,10 @@ func TestFileSinkWritesJSONLinesAndRotates(t *testing.T) {
 	}
 	m := NewMemory(100, f)
 	for i := 0; i < 10; i++ {
-		m.Record(ports.AuditEntry{ID: strings.Repeat("x", 3) + string(rune('a'+i)), Time: time.Unix(0, 0).UTC(), Source: "am", Verdict: ports.AuditDropped,
-			Trace: []domain.TraceStep{{Route: "noise", Matched: true, Action: "drop"}}})
+		m.Record(ports.AuditEntry{
+			ID: strings.Repeat("x", 3) + string(rune('a'+i)), Time: time.Unix(0, 0).UTC(), Source: "am", Verdict: ports.AuditDropped,
+			Trace: []domain.TraceStep{{Route: "noise", Matched: true, Action: "drop"}},
+		})
 	}
 	f.Close()
 	read := func(p string) []ports.AuditEntry {
@@ -108,12 +110,14 @@ func TestFileSinkBadPath(t *testing.T) {
 func TestLogSink(t *testing.T) {
 	var buf bytes.Buffer
 	l := Log{L: slog.New(slog.NewTextHandler(&buf, nil))}
-	l.Write(ports.AuditEntry{ID: "n-1", Source: "am", Verdict: ports.AuditFailed, Status: "firing",
+	l.Write(ports.AuditEntry{
+		ID: "n-1", Source: "am", Verdict: ports.AuditFailed, Status: "firing",
 		Trace: []domain.TraceStep{{Route: "critical", Matched: true}, {Route: "rest"}},
 		Deliveries: []ports.AuditDelivery{
 			{Destination: "critical", Status: "sent"},
 			{Destination: "pager", Status: "failed", Attempts: []ports.AuditAttempt{{Error: "503 Service Unavailable"}}},
-		}})
+		},
+	})
 	out := buf.String()
 	for _, want := range []string{"level=WARN", "msg=audit", "audit_id=n-1", "verdict=failed", "rules=critical", "sent=critical", `failed="pager: 503 Service Unavailable"`} {
 		if !strings.Contains(out, want) {

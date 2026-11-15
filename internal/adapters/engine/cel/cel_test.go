@@ -39,8 +39,10 @@ func TestRegistered(t *testing.T) {
 }
 
 func TestCEL(t *testing.T) {
-	ev := &domain.Event{Source: "sonarr", Status: "firing", Labels: map[string]string{"severity": "critical"},
-		Data: jsonData(t, `{"eventType":"Download","series":{"title":"Severance"},"episodes":[{"n":2},{"n":3}],"size":1.5}`)}
+	ev := &domain.Event{
+		Source: "sonarr", Status: "firing", Labels: map[string]string{"severity": "critical"},
+		Data: jsonData(t, `{"eventType":"Download","series":{"title":"Severance"},"episodes":[{"n":2},{"n":3}],"size":1.5}`),
+	}
 	cases := map[string]bool{
 		`labels.severity in ["critical", "page"] && status == "firing"`: true,
 		`size(data.episodes) == 2 && data.episodes[1].n == 3`:           true,
@@ -67,8 +69,10 @@ func TestCEL(t *testing.T) {
 }
 
 func TestCELNumbers(t *testing.T) {
-	ev := &domain.Event{Data: map[string]any{"i": json.Number("12"), "f": json.Number("1.5"), "big": float64(3), "frac": 2.5,
-		"list": []any{json.Number("1")}}}
+	ev := &domain.Event{Data: map[string]any{
+		"i": json.Number("12"), "f": json.Number("1.5"), "big": float64(3), "frac": 2.5,
+		"list": []any{json.Number("1")},
+	}}
 	for expr, want := range map[string]bool{
 		`data.i == 12 && data.i > 11`:       true,
 		`data.f > 1.4 && data.f < 1.6`:      true,

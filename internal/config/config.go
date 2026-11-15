@@ -4,6 +4,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -335,7 +336,7 @@ func decode(b []byte) (*Config, error) {
 	var cfg Config
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
-	if err := dec.Decode(&cfg); err != nil && err != io.EOF {
+	if err := dec.Decode(&cfg); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 	cfg.defaults()
@@ -597,22 +598,30 @@ func (c *Config) SourceFor(name string) (Source, bool) {
 
 // Spec maps the config to what the core needs.
 func (c *Config) Spec() domain.Spec {
-	spec := domain.Spec{Engine: c.Engine, Destinations: map[string]domain.Destination{}, Templates: c.Templates,
-		Delivery: domain.DeliveryPolicy{Sync: c.Delivery.Mode == "sync", Timeout: c.Delivery.Timeout, QueueSize: c.Delivery.QueueSize,
+	spec := domain.Spec{
+		Engine: c.Engine, Destinations: map[string]domain.Destination{}, Templates: c.Templates,
+		Delivery: domain.DeliveryPolicy{
+			Sync: c.Delivery.Mode == "sync", Timeout: c.Delivery.Timeout, QueueSize: c.Delivery.QueueSize,
 			MaxRetries: c.Delivery.MaxRetries, MaxBackoff: c.Delivery.MaxBackoff, DedupeWindow: c.Delivery.DedupeWindow,
 			LateAfter: *c.Delivery.LateAfter, MaxAge: c.Delivery.MaxAge,
-			BreakerFailures: max(c.Delivery.BreakerFailures, 0), BreakerCooldown: c.Delivery.BreakerCooldown}}
+			BreakerFailures: max(c.Delivery.BreakerFailures, 0), BreakerCooldown: c.Delivery.BreakerCooldown,
+		},
+	}
 	for _, r := range c.Routes {
-		spec.Rules = append(spec.Rules, domain.Rule{Name: r.Name, Expr: r.Expr, Engine: r.Engine, To: r.To, Template: r.Template, Loud: r.Loud, Priority: r.Priority, Digest: r.Digest,
+		spec.Rules = append(spec.Rules, domain.Rule{
+			Name: r.Name, Expr: r.Expr, Engine: r.Engine, To: r.To, Template: r.Template, Loud: r.Loud, Priority: r.Priority, Digest: r.Digest,
 			Mention: r.Mention, Drop: r.Drop, Continue: r.Continue,
-			Match: domain.Match{Source: r.Match.Source, Status: r.Match.Status, Labels: r.Match.Labels, Fields: r.Match.Fields}})
+			Match: domain.Match{Source: r.Match.Source, Status: r.Match.Status, Labels: r.Match.Labels, Fields: r.Match.Fields},
+		})
 	}
 	for alias, d := range c.Destinations {
 		spec.Destinations[alias] = domain.Destination{Alias: alias, Target: d.Target, Account: d.Account, Address: d.Address, Fallback: d.Fallback}
 	}
 	for _, h := range c.Heartbeats {
-		spec.Heartbeats = append(spec.Heartbeats, domain.Heartbeat{Name: h.Name, Source: h.Source, Labels: h.Labels,
-			Timeout: h.Timeout, To: h.To, Mention: h.Mention})
+		spec.Heartbeats = append(spec.Heartbeats, domain.Heartbeat{
+			Name: h.Name, Source: h.Source, Labels: h.Labels,
+			Timeout: h.Timeout, To: h.To, Mention: h.Mention,
+		})
 	}
 	return spec
 }

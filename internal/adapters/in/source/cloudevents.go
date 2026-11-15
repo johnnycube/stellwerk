@@ -132,8 +132,10 @@ func (c *CloudEvents) event(source string, m map[string]any) (*domain.Event, err
 			labels[k] = fmt.Sprint(v)
 		}
 	}
-	ev := &domain.Event{Source: source, Kind: "cloudevents", Labels: labels, Data: m,
-		Key: fmt.Sprint(m["source"]) + "#" + fmt.Sprint(m["id"])} // unique per the spec
+	ev := &domain.Event{
+		Source: source, Kind: "cloudevents", Labels: labels, Data: m,
+		Key: fmt.Sprint(m["source"]) + "#" + fmt.Sprint(m["id"]),
+	} // unique per the spec
 	if c.opts.StatusField != "" {
 		if v, ok := domain.Lookup(m, c.opts.StatusField); ok && v != nil {
 			ev.Status = fmt.Sprint(v)

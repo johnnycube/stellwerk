@@ -210,7 +210,8 @@ func TestPrecedence(t *testing.T) {
 func TestFileSuffixReadsSecretFile(t *testing.T) {
 	secret := write(t, t.TempDir(), "pw", "from-file\n")
 	cfg, _, err := LoadFrom(LoadOptions{File: write(t, t.TempDir(), "s.yaml", rulesYAML), Environ: []string{
-		"AM_TOKEN=x", "STELLWERK_SOURCES__ALERTMANAGER__TOKEN_FILE=" + secret}})
+		"AM_TOKEN=x", "STELLWERK_SOURCES__ALERTMANAGER__TOKEN_FILE=" + secret,
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +219,8 @@ func TestFileSuffixReadsSecretFile(t *testing.T) {
 		t.Errorf("token %q", cfg.Sources["alertmanager"].Token)
 	}
 	_, _, err = LoadFrom(LoadOptions{File: write(t, t.TempDir(), "s.yaml", rulesYAML), Environ: []string{
-		"AM_TOKEN=x", "STELLWERK_SOURCES__ALERTMANAGER__TOKEN_FILE=/does/not/exist"}})
+		"AM_TOKEN=x", "STELLWERK_SOURCES__ALERTMANAGER__TOKEN_FILE=/does/not/exist",
+	}})
 	if err == nil {
 		t.Error("a missing _FILE must fail loudly")
 	}
@@ -279,7 +281,8 @@ func TestOptionsFromEnv(t *testing.T) {
 func TestRedacted(t *testing.T) {
 	out, err := Redacted(LoadOptions{File: write(t, t.TempDir(), "s.yaml", rulesYAML), Environ: []string{
 		"AM_TOKEN=very-secret", "STELLWERK_TARGETS__MATRIX__ACCOUNTS__ALERTS__PASSWORD=pw123",
-		"STELLWERK_UI__PASSWORD=ui-pw"}})
+		"STELLWERK_UI__PASSWORD=ui-pw",
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +300,8 @@ func TestAnyKeyForTheFallbackSource(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "sources._any.token", "file-token")
 	cfg, _, err := LoadFrom(LoadOptions{File: write(t, t.TempDir(), "s.yaml", rulesYAML+"  \"*\": { kind: generic }\n"[0:0]), Dirs: []string{dir}, Environ: []string{
-		"AM_TOKEN=x", "STELLWERK_SOURCES___ANY__KIND=generic"}})
+		"AM_TOKEN=x", "STELLWERK_SOURCES___ANY__KIND=generic",
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}

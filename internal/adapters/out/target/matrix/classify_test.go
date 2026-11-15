@@ -27,7 +27,7 @@ func TestClassify(t *testing.T) {
 		t.Error("unknown errors are retried")
 	}
 	plain := errors.New("connection reset")
-	if classify(plain) != plain {
+	if classify(plain) != plain { //nolint:errorlint // identity: the same value must pass through
 		t.Error("plain errors pass through")
 	}
 }

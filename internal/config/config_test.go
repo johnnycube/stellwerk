@@ -231,8 +231,10 @@ func TestSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(b)
-	for _, want := range []string{`"$schema"`, `"#/$defs/Source"`, `"enum": [`, `"alertmanager"`, `"pattern"`, `"additionalProperties": false`,
-		`Identical payloads from the same source within this window are delivered once.`, `"self_ping"`, `"tests"`} {
+	for _, want := range []string{
+		`"$schema"`, `"#/$defs/Source"`, `"enum": [`, `"alertmanager"`, `"pattern"`, `"additionalProperties": false`,
+		`Identical payloads from the same source within this window are delivered once.`, `"self_ping"`, `"tests"`,
+	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %s", want)
 		}

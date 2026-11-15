@@ -122,9 +122,11 @@ type flowsResponse struct {
 
 func (s *Server) handleFlows(w http.ResponseWriter, _ *http.Request) {
 	topo := s.Describe.Describe()
-	resp := flowsResponse{Kinds: source.Infos(), Cluster: topo.Cluster, Stats: topo.Stats,
+	resp := flowsResponse{
+		Kinds: source.Infos(), Cluster: topo.Cluster, Stats: topo.Stats,
 		Routes: []flowRoute{}, Heartbeats: []flowHeartbeat{}, Destinations: []flowDestination{}, Targets: []TargetView{},
-		Silences: topo.Silences, Actions: s.Silences != nil}
+		Silences: topo.Silences, Actions: s.Silences != nil,
+	}
 	if resp.Silences == nil {
 		resp.Silences = []domain.Silence{}
 	}
@@ -177,9 +179,11 @@ func (s *Server) handleFlows(w http.ResponseWriter, _ *http.Request) {
 		resp.Destinations = append(resp.Destinations, flowDestination{Alias: d.Alias, Target: d.Target, Account: d.Account, Type: types[d.Target], Address: d.Address, Fallback: d.Fallback})
 	}
 	for i, r := range topo.Rules {
-		fr := flowRoute{Index: i, Name: r.Name, Source: r.Match.Source, Status: r.Match.Status, Labels: r.Match.Labels,
+		fr := flowRoute{
+			Index: i, Name: r.Name, Source: r.Match.Source, Status: r.Match.Status, Labels: r.Match.Labels,
 			Fields: r.Match.Fields, Expr: r.Expr, To: r.To, Template: r.Template, Loud: r.Loud || len(r.Mention) > 0,
-			Mention: r.Mention, Drop: r.Drop, Continue: r.Continue}
+			Mention: r.Mention, Drop: r.Drop, Continue: r.Continue,
+		}
 		if r.Expr != "" {
 			fr.Engine = r.Engine
 			if fr.Engine == "" {
@@ -201,9 +205,11 @@ func (s *Server) handleFlows(w http.ResponseWriter, _ *http.Request) {
 		resp.Routes = append(resp.Routes, fr)
 	}
 	for _, h := range topo.Heartbeats {
-		resp.Heartbeats = append(resp.Heartbeats, flowHeartbeat{Name: h.Name, Source: h.Source, Labels: h.Labels,
+		resp.Heartbeats = append(resp.Heartbeats, flowHeartbeat{
+			Name: h.Name, Source: h.Source, Labels: h.Labels,
 			Timeout: h.Timeout.String(), To: h.To, LastSeen: h.LastSeen.Format("2006-01-02T15:04:05.000Z07:00"), Missing: h.Missing,
-			Failed: h.Failed, Ping: s.pingTokens()[h.Name] != ""})
+			Failed: h.Failed, Ping: s.pingTokens()[h.Name] != "",
+		})
 	}
 	for _, t := range topo.Templates {
 		resp.Templates = append(resp.Templates, flowTemplate(t))
@@ -267,8 +273,10 @@ func (s *Server) handleSimulate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, sim := range s.Simulate.Simulate(events) {
-		se := simulatedEvent{Status: sim.Event.Status, Labels: sim.Event.Labels, Heartbeat: sim.Heartbeat,
-			Trace: sim.Trace, DroppedBy: sim.DroppedBy, Silenced: sim.Silenced, Deliveries: []simulatedDelivery{}}
+		se := simulatedEvent{
+			Status: sim.Event.Status, Labels: sim.Event.Labels, Heartbeat: sim.Heartbeat,
+			Trace: sim.Trace, DroppedBy: sim.DroppedBy, Silenced: sim.Silenced, Deliveries: []simulatedDelivery{},
+		}
 		if se.Trace == nil {
 			se.Trace = []domain.TraceStep{}
 		}
@@ -276,8 +284,10 @@ func (s *Server) handleSimulate(w http.ResponseWriter, r *http.Request) {
 			out.Error = sim.Err
 		}
 		for _, d := range sim.Deliveries {
-			se.Deliveries = append(se.Deliveries, simulatedDelivery{Route: d.Route, Destination: d.Destination, Endpoint: d.Endpoint,
-				Markdown: d.Message.Markdown, HTML: previewHTML(d.Message), Loud: d.Message.Loud, Mentions: d.Message.Mentions})
+			se.Deliveries = append(se.Deliveries, simulatedDelivery{
+				Route: d.Route, Destination: d.Destination, Endpoint: d.Endpoint,
+				Markdown: d.Message.Markdown, HTML: previewHTML(d.Message), Loud: d.Message.Loud, Mentions: d.Message.Mentions,
+			})
 		}
 		out.Events = append(out.Events, se)
 	}
@@ -334,8 +344,10 @@ func (s *Server) handleAuditList(w http.ResponseWriter, r *http.Request) {
 	entries := s.Audit.List(ports.AuditQuery{Source: q.Get("source"), Verdict: q.Get("verdict"), Text: q.Get("q"), Limit: limit})
 	out := make([]auditSummary, 0, len(entries))
 	for _, e := range entries {
-		sum := auditSummary{ID: e.ID, Time: e.Time.Format("2006-01-02T15:04:05.000Z07:00"), Node: e.Node, Source: e.Source, Kind: e.Kind,
-			Status: e.Status, Verdict: e.Verdict, Reason: e.Reason}
+		sum := auditSummary{
+			ID: e.ID, Time: e.Time.Format("2006-01-02T15:04:05.000Z07:00"), Node: e.Node, Source: e.Source, Kind: e.Kind,
+			Status: e.Status, Verdict: e.Verdict, Reason: e.Reason,
+		}
 		for _, t := range e.Trace {
 			if t.Matched {
 				sum.Rules = append(sum.Rules, t.Route)

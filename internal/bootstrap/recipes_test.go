@@ -34,7 +34,7 @@ destinations:
 		for _, m := range block.FindAllStringSubmatch(string(raw), -1) {
 			y := m[1]
 			first := strings.TrimSpace(strings.SplitN(y, "\n", 2)[0])
-			if !(strings.HasPrefix(first, "# stellwerk") || strings.HasPrefix(first, "sources:") || strings.HasPrefix(first, "heartbeats:")) {
+			if !strings.HasPrefix(first, "# stellwerk") && !strings.HasPrefix(first, "sources:") && !strings.HasPrefix(first, "heartbeats:") {
 				continue // the app's own config
 			}
 			doc := base + y

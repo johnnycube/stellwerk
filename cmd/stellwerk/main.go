@@ -76,7 +76,7 @@ func exit(err error) {
 	if err == nil {
 		return
 	}
-	if err != errTestsFailed {
+	if !errors.Is(err, errTestsFailed) {
 		slog.New(slog.NewTextHandler(os.Stderr, nil)).Error("fatal", "err", err)
 	}
 	os.Exit(1)

@@ -227,8 +227,10 @@ func compile(cfg *config.Config) (*compiled, error) {
 // connections, listeners, queues or cluster membership.
 func restartOnly(c *config.Config) map[string]string {
 	out := map[string]string{}
-	for name, v := range map[string]any{"listen": c.Listen, "node_id": c.NodeID, "targets": c.Targets, "delivery": c.Delivery,
-		"ha": c.HA, "ui": c.UI, "log": c.Log, "metrics": c.Metrics, "audit": c.Audit} {
+	for name, v := range map[string]any{
+		"listen": c.Listen, "node_id": c.NodeID, "targets": c.Targets, "delivery": c.Delivery,
+		"ha": c.HA, "ui": c.UI, "log": c.Log, "metrics": c.Metrics, "audit": c.Audit,
+	} {
 		b, _ := yaml.Marshal(v)
 		out[name] = string(b)
 	}
@@ -343,10 +345,12 @@ func (a *App) Wire(senders map[string]ports.Sender) {
 		resend = a.Resend
 	}
 
-	a.HTTP = &httpin.Server{Ingest: a.Ingest, Simulate: a.Simulate, Describe: a.Describe, Audit: readAudit, Sources: a.Sources, Ready: a.Ready,
+	a.HTTP = &httpin.Server{
+		Ingest: a.Ingest, Simulate: a.Simulate, Describe: a.Describe, Audit: readAudit, Sources: a.Sources, Ready: a.Ready,
 		Silences: a.Silences, Resend: resend, Reload: a.ReloadFromSource, Pings: a.Heartbeats, PingTokens: a.pingTokens,
 		Targets: a.targetViews, UIPassword: a.Cfg.UI.Password, Mounts: map[string]http.Handler{},
-		OnRateLimited: a.Metrics.RateLimited}
+		OnRateLimited: a.Metrics.RateLimited,
+	}
 	a.Scheduler = &scheduler.Heartbeats{UseCase: a.Heartbeats, Interval: 15 * time.Second, Log: a.Log}
 	if c := a.Cfg.Canary; len(c.To) > 0 {
 		var rx ports.Receiver
@@ -597,15 +601,21 @@ func (a *App) gauges() []metrics.Gauge {
 		}
 	}
 	for _, t := range a.targetViews() {
-		g = append(g, metrics.Gauge{Name: "stellwerk_endpoint_ready", Help: "1 if a target account can deliver.",
-			Labels: map[string]string{"target": t.Target, "account": t.Account, "type": t.Type}, Value: metrics.Bool(t.Ready)},
-			metrics.Gauge{Name: "stellwerk_endpoint_problems", Help: "Known problems of a target account (not in a room, room not encrypted, device not verified).",
-				Labels: map[string]string{"target": t.Target, "account": t.Account, "type": t.Type}, Value: float64(len(t.Problems))})
+		g = append(g, metrics.Gauge{
+			Name: "stellwerk_endpoint_ready", Help: "1 if a target account can deliver.",
+			Labels: map[string]string{"target": t.Target, "account": t.Account, "type": t.Type}, Value: metrics.Bool(t.Ready),
+		},
+			metrics.Gauge{
+				Name: "stellwerk_endpoint_problems", Help: "Known problems of a target account (not in a room, room not encrypted, device not verified).",
+				Labels: map[string]string{"target": t.Target, "account": t.Account, "type": t.Type}, Value: float64(len(t.Problems)),
+			})
 	}
 	now := a.Clock.Now()
 	for ep, b := range a.Deliver.Breakers() {
-		g = append(g, metrics.Gauge{Name: "stellwerk_endpoint_breaker_open", Help: "1 while an account is skipped after failing too often in a row.",
-			Labels: map[string]string{"endpoint": ep}, Value: metrics.Bool(b.OpenUntil.After(now))})
+		g = append(g, metrics.Gauge{
+			Name: "stellwerk_endpoint_breaker_open", Help: "1 while an account is skipped after failing too often in a row.",
+			Labels: map[string]string{"endpoint": ep}, Value: metrics.Bool(b.OpenUntil.After(now)),
+		})
 	}
 	g = append(g, metrics.Gauge{Name: "stellwerk_digest_waiting", Help: "Messages collected for a digest, not sent yet.", Value: float64(a.Digests.Waiting())},
 		metrics.Gauge{Name: "stellwerk_silences_active", Help: "Silences in force.", Value: float64(len(a.Silences.Active()))})

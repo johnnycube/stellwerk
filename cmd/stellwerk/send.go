@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -78,7 +79,7 @@ func runSend(args []string, stdin io.Reader, stdout io.Writer, environ []string)
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
-	req, err := http.NewRequest(http.MethodPost, u, bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}

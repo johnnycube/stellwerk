@@ -67,8 +67,10 @@ func Run(ctx context.Context, o Options, out io.Writer, log *slog.Logger) error 
 	}
 	fmt.Fprintf(out, "Logging in as %s and setting up encryption ...\n", o.UserID)
 	res, err := matrix.Setup(ctx, matrix.SetupRequest{
-		Settings: matrix.Settings{Homeserver: o.Homeserver, UserID: o.UserID, Password: o.Password,
-			Database: filepath.Join(data, "matrix-alerts-init.db"), PickleKey: secrets["MATRIX_PICKLE_KEY"], DeviceName: "stellwerk init"},
+		Settings: matrix.Settings{
+			Homeserver: o.Homeserver, UserID: o.UserID, Password: o.Password,
+			Database: filepath.Join(data, "matrix-alerts-init.db"), PickleKey: secrets["MATRIX_PICKLE_KEY"], DeviceName: "stellwerk init",
+		},
 		Invite: o.Invite, RoomName: o.RoomName,
 	}, log)
 	if err != nil {

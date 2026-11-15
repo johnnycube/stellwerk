@@ -21,7 +21,7 @@ import (
 	"github.com/johnnycube/stellwerk/internal/adapters/out/target"
 	"github.com/johnnycube/stellwerk/internal/core/domain"
 	"github.com/johnnycube/stellwerk/internal/core/ports"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // database/sql driver for the crypto store
 	"github.com/rs/zerolog"
 	"go.yaml.in/yaml/v3"
 	"maunium.net/go/mautrix"
@@ -141,7 +141,7 @@ func New(ctx context.Context, cfg Settings, log *slog.Logger, commands target.Co
 	}
 
 	syncer := client.Syncer.(*mautrix.DefaultSyncer)
-	syncer.OnSync(func(ctx context.Context, _ *mautrix.RespSync, _ string) bool {
+	syncer.OnSync(func(_ context.Context, _ *mautrix.RespSync, _ string) bool {
 		m.synced.Store(true)
 		return true
 	})
@@ -317,6 +317,7 @@ func (m *Matrix) Check(ctx context.Context, rooms []string) []string {
 					state = "banned"
 				case event.MembershipInvite:
 					state = "invited but has not joined"
+				default: // left, knocked: "not a member"
 				}
 			}
 			problems = append(problems, fmt.Sprintf("%s: the bot is %s (invite it from an allowed_inviters account)", r, state))
@@ -369,7 +370,11 @@ func Setup(ctx context.Context, req SetupRequest, log *slog.Logger) (SetupResult
 	if err != nil {
 		return res, err
 	}
-	defer m.Close()
+	defer func() {
+		if err := m.Close(); err != nil {
+			log.Warn("matrix close failed", "err", err)
+		}
+	}()
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	go m.Run(runCtx)

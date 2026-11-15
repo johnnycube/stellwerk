@@ -224,7 +224,8 @@ func TestFallback_OneLevelOnly(t *testing.T) {
 	a, b, c := failing(), failing(), portstest.NewSender()
 	d, _ := newDeliver(t, fast, map[string]ports.Sender{"a/x": a, "b/x": b, "c/x": c})
 	done, _ := d.Enqueue(domain.Delivery{Endpoint: "a/x", Fallback: []domain.Delivery{
-		{Endpoint: "b/x", Fallback: []domain.Delivery{{Endpoint: "c/x"}}}}})
+		{Endpoint: "b/x", Fallback: []domain.Delivery{{Endpoint: "c/x"}}},
+	}})
 	if err := <-done; err == nil {
 		t.Error("expected failure")
 	}

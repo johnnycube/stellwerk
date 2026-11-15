@@ -36,7 +36,7 @@ func (fl *File) open() error {
 	}
 	st, err := f.Stat()
 	if err != nil {
-		f.Close()
+		_ = f.Close() // the Stat error is the one to report
 		return err
 	}
 	fl.f, fl.size = f, st.Size()
@@ -65,7 +65,9 @@ func (fl *File) Write(e ports.AuditEntry) {
 }
 
 func (fl *File) rotate() {
-	fl.f.Close()
+	if err := fl.f.Close(); err != nil && fl.log != nil {
+		fl.log.Error("audit file close failed", "err", err)
+	}
 	fl.f = nil
 	if err := os.Rename(fl.path, fl.path+".1"); err != nil && fl.log != nil {
 		fl.log.Error("audit file rotation failed", "err", err)

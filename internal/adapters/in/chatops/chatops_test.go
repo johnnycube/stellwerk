@@ -27,15 +27,18 @@ func (c *canary) Run(context.Context) ports.CanaryResult {
 	c.runs++
 	return ports.CanaryResult{OK: c.ok, Marker: "canary-x", Problems: []string{"critical: down"}}
 }
+
 func (c *canary) Last() (ports.CanaryResult, bool) {
 	return ports.CanaryResult{OK: true, Time: time.Now()}, c.runs > 0
 }
 
 func handler(t *testing.T) (*Handler, *usecase.ManageSilences) {
+	t.Helper()
 	s := usecase.NewManageSilences(portstest.NewSilenceStore(), portstest.NewClock(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return &Handler{Silences: s, Describe: topo{ports.Topology{
 		Heartbeats: []ports.HeartbeatState{{Heartbeat: domain.Heartbeat{Name: "wd"}, LastSeen: time.Now()}, {Heartbeat: domain.Heartbeat{Name: "backup"}, Failed: true}, {Heartbeat: domain.Heartbeat{Name: "cron"}, Missing: true}},
-		Cluster:    ports.ClusterStatus{Enabled: true, NodeID: "a", Leader: "a"}}}}, s
+		Cluster:    ports.ClusterStatus{Enabled: true, NodeID: "a", Leader: "a"},
+	}}}, s
 }
 
 func TestIsCommand(t *testing.T) {

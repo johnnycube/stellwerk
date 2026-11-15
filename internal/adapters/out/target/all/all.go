@@ -2,6 +2,7 @@
 package all
 
 import (
+	// each target registers itself in init
 	_ "github.com/johnnycube/stellwerk/internal/adapters/out/target/email"
 	_ "github.com/johnnycube/stellwerk/internal/adapters/out/target/matrix"
 	_ "github.com/johnnycube/stellwerk/internal/adapters/out/target/ntfy"
