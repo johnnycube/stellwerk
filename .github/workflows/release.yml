@@ -72,6 +72,8 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
       - id: push
         uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: "false"   # keeps the build record out of the release assets
         with:
           context: .
           platforms: linux/amd64,linux/arm64
