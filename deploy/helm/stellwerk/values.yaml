@@ -1,0 +1,81 @@
+image:
+  repository: ghcr.io/johnnycube/stellwerk
+  tag: ""            # default: the chart's appVersion
+  pullPolicy: IfNotPresent
+
+# The stellwerk configuration without secrets, as YAML. It goes into a
+# ConfigMap. Secrets go into the Secret below and are merged over it.
+config:
+  sources:
+    alertmanager: { kind: alertmanager }
+  targets:
+    matrix:
+      type: matrix
+      settings:
+        homeserver: https://matrix.example.org
+        allowed_inviters: ["@me:example.org"]
+      accounts:
+        alerts: { user_id: "@stellwerk:example.org", commands: true }
+  destinations:
+    alerts: { target: matrix, account: alerts, address: "!aaaa:example.org" }
+  routes:
+    - { name: everything, to: alerts }
+  heartbeats:
+    - { name: watchdog, source: alertmanager, labels: { alertname: Watchdog }, timeout: 10m, to: alerts }
+
+# Secret values, one key per config path, e.g.
+#   sources.alertmanager.token: ...
+#   targets.matrix.accounts.alerts.password: ...
+# Leave empty and set existingSecret to use a Secret you manage
+# (External Secrets, Sealed Secrets, SOPS).
+secrets: {}
+existingSecret: ""
+
+# Reload when the ConfigMap or Secret changes, without a restart.
+watch: 30s
+
+# Data volume per pod: Matrix keys, spool, audit file. Losing it means new
+# Matrix devices, so keep it.
+persistence:
+  size: 1Gi
+  storageClassName: ""
+
+ha:
+  # 1 = single node, HA off. 2 or more: HA on, one Matrix device per pod.
+  replicas: 1
+  secret: ""          # shared cluster secret, required for replicas > 1 (or ha.secret in the Secret)
+
+log:
+  format: json
+  level: info
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ui:
+  enabled: true       # served on port 8081, reach it with kubectl port-forward
+
+metrics:
+  enabled: true       # port 9090, with prometheus.io annotations
+serviceMonitor:
+  enabled: false      # for the Prometheus Operator
+  interval: 30s
+
+resources:
+  requests: { cpu: 20m, memory: 64Mi }
+  limits: { memory: 256Mi }
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

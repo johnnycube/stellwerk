@@ -1,0 +1,10 @@
+apiVersion: v2
+name: stellwerk
+description: Routes webhooks and alerts by rules into end-to-end encrypted Matrix rooms, mail, push and more.
+type: application
+version: 0.1.0      # set by the release workflow
+appVersion: "v0.1.0"
+home: https://github.com/johnnycube/stellwerk
+sources: [https://github.com/johnnycube/stellwerk]
+license: Apache-2.0
+keywords: [alerting, webhooks, matrix, alertmanager, notifications]

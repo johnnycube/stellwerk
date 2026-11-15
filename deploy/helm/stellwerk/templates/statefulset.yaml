@@ -1,0 +1,82 @@
+{{- if and (gt (int .Values.ha.replicas) 1) (not .Values.ha.secret) (not .Values.existingSecret) (not (hasKey .Values.secrets "ha.secret")) }}
+{{- fail "ha.replicas > 1 needs ha.secret (or a key ha.secret in secrets or existingSecret)" }}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "stellwerk.fullname" . }}
+  labels: {{- include "stellwerk.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "stellwerk.fullname" . }}-peers
+  replicas: {{ .Values.ha.replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: {{- include "stellwerk.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "stellwerk.selector" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "stellwerk.config" . | sha256sum }}
+        {{- if .Values.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        {{- end }}
+    spec:
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 40   # above delivery.drain_timeout (25s)
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: stellwerk
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - { name: STELLWERK_CONFIG, value: /etc/stellwerk/config/stellwerk.yaml }
+            - { name: STELLWERK_CONFIG_DIR, value: /etc/stellwerk/secrets }
+            - { name: STELLWERK_WATCH, value: {{ .Values.watch | quote }} }
+            - name: STELLWERK_NODE_ID
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+          ports:
+            - { name: http, containerPort: 8080 }
+            {{- if .Values.ui.enabled }}
+            - { name: ui, containerPort: 8081 }
+            {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - { name: metrics, containerPort: 9090 }
+            {{- end }}
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/stellwerk/config, readOnly: true }
+            - { name: secrets, mountPath: /etc/stellwerk/secrets, readOnly: true }
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: config
+          configMap: { name: {{ include "stellwerk.fullname" . }} }
+        - name: secrets
+          secret: { secretName: {{ include "stellwerk.secretName" . }} }
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.persistence.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

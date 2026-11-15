@@ -1,0 +1,26 @@
+# Alertmanager side (e.g. kube-prometheus-stack values: alertmanager.config).
+# Group by severity so one Matrix message never mixes critical and warning.
+route:
+  receiver: stellwerk
+  group_by: [alertname, namespace, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Heartbeat for the stellwerk heartbeat check: always firing, sent every minute.
+    - receiver: stellwerk
+      matchers: [alertname = "Watchdog"]
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1m
+
+receivers:
+  - name: stellwerk
+    webhook_configs:
+      - url: https://alerts.example.org/in/alertmanager   # load balancer or single node
+        send_resolved: true
+        max_alerts: 20
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /etc/alertmanager/secrets/stellwerk-token

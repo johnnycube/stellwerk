@@ -1,0 +1,6 @@
+.git
+*.db
+*.db-*
+stellwerk.yaml
+.env
+.dev

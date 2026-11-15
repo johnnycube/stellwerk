@@ -1,0 +1,6 @@
+/stellwerk
+*.db
+*.db-*
+/stellwerk.yaml
+.env
+.dev/

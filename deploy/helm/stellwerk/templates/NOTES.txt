@@ -1,0 +1,14 @@
+stellwerk is starting as {{ include "stellwerk.fullname" . }} ({{ .Values.ha.replicas }} {{ if gt (int .Values.ha.replicas) 1 }}nodes, HA on{{ else }}node{{ end }}).
+
+Senders post to:
+  http://{{ include "stellwerk.fullname" . }}.{{ .Release.Namespace }}:{{ .Values.service.port }}/in/<source>
+{{- if .Values.ui.enabled }}
+
+Dataflow UI and audit log:
+  kubectl -n {{ .Release.Namespace }} port-forward {{ include "stellwerk.fullname" . }}-0 8081
+  open http://127.0.0.1:8081
+{{- end }}
+
+First start of a Matrix account: set up cross-signing once and store the key
+as targets.matrix.accounts.<account>.recovery_key in the Secret:
+  kubectl -n {{ .Release.Namespace }} exec {{ include "stellwerk.fullname" . }}-0 -- /stellwerk -bootstrap-cross-signing matrix/<account>

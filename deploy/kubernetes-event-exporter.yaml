@@ -1,0 +1,13 @@
+# Config for resmoio/kubernetes-event-exporter: forward k8s events to stellwerk.
+# stellwerk drops type=Normal by default (see k8s-normal-noise route).
+logLevel: error
+route:
+  routes:
+    - match:
+        - receiver: stellwerk
+receivers:
+  - name: stellwerk
+    webhook:
+      endpoint: "https://alerts.example.org/in/k8s-events"
+      headers:
+        Authorization: "Bearer ${EXPORTER_TOKEN}"

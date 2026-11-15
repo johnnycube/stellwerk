@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stellwerk</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --paper: #E9EEF2;
+  --paper-2: #F6F8FA;
+  --ink: #16222E;
+  --ink-soft: #4C5B69;
+  --steel: #A3B0BD;
+  --steel-dark: #6F7F8E;
+  --go: #2E8B57;
+  --stop: #C0392B;
+  --trace: #E3A21A;
+  --trace-ink: #8A5D00;
+  --sign: "DIN Alternate", "DIN 2014", "D-DIN", Bahnschrift, "Roboto Condensed", "Arial Narrow", sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --code: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--body); }
+h1, h2, h3, .sign { font-family: var(--sign); font-weight: 700; letter-spacing: .01em; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--trace); outline-offset: 2px; }
+
+header.bar {
+  display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap;
+  padding: 1.25rem 2rem .75rem;
+}
+header.bar h1 { margin: 0; font-size: 2rem; line-height: 1; }
+header.bar p { margin: 0; color: var(--ink-soft); }
+header.bar .counts { margin-left: auto; display: flex; gap: 1.25rem; color: var(--ink-soft); }
+header.bar .counts b { font-family: var(--sign); font-size: 1.25rem; color: var(--ink); margin-right: .25rem; }
+.live { display: inline-flex; align-items: center; gap: .4rem; }
+.live i { width: .55rem; height: .55rem; border-radius: 50%; background: var(--go); display: inline-block; }
+.live.stale i { background: var(--stop); }
+
+@media (max-width: 640px) {
+  header.bar { padding: 1rem 1rem .5rem; }
+  header.bar .counts { margin-left: 0; }
+  main { padding: 0 1rem 2rem !important; }
+}
+main { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; gap: 0 1.5rem; padding: 0 2rem 3rem; }
+@media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+
+#yard-wrap { overflow-x: auto; background: var(--paper-2); border-radius: 6px; padding: .5rem 0; }
+#yard { display: block; min-width: 820px; width: 100%; height: auto; }
+#yard text { font-family: var(--sign); fill: var(--ink); }
+#yard .small { font-family: var(--body); font-size: 11px; fill: var(--ink-soft); }
+#yard .num { font-size: 13px; fill: var(--steel-dark); }
+#yard .track { fill: none; stroke: var(--steel); stroke-width: 3; stroke-linecap: round; }
+#yard .trunk { stroke: var(--ink); stroke-width: 5; }
+#yard .branch-drop { stroke-dasharray: 2 6; }
+#yard .node { cursor: pointer; }
+#yard .node:focus { outline: none; }
+#yard .node:focus-visible .hit { stroke: var(--trace); stroke-width: 3; }
+#yard .hit { fill: transparent; stroke: none; rx: 4; }
+#yard .node:hover .hit { fill: rgba(22, 34, 46, .05); }
+#yard .selected .hit { fill: rgba(227, 162, 26, .14); }
+#yard .switch { fill: var(--paper-2); stroke: var(--ink); stroke-width: 3; }
+#yard .switch.loud { fill: var(--ink); }
+#yard .platform { fill: var(--go); }
+#yard .type { font-family: var(--body); font-size: 10.5px; fill: var(--steel-dark); }
+#yard .buffer { fill: var(--stop); }
+#yard .buffer-idle { fill: var(--steel-dark); }
+#yard .src-dot { fill: var(--ink); }
+#yard .dim { opacity: .22; }
+#yard .lit { stroke: var(--trace) !important; }
+#yard .lit-fill { fill: var(--trace) !important; stroke: var(--trace-ink) !important; }
+#yard .heartbeat { stroke-dasharray: 6 5; }
+#yard .count { font-family: var(--sign); font-size: 12px; fill: var(--ink-soft); }
+@media (prefers-reduced-motion: no-preference) {
+  #yard .lit { stroke-dasharray: 14 10; animation: run 0.9s linear infinite; }
+  @keyframes run { to { stroke-dashoffset: -24; } }
+}
+
+aside#detail { background: var(--paper-2); border-radius: 6px; padding: 1.25rem 1.5rem; align-self: start; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
+@media (max-width: 1100px) { aside#detail { position: static; max-height: none; margin-top: 1.5rem; } }
+aside#detail h2 { margin: 0 0 .25rem; font-size: 1.5rem; }
+aside#detail .kind { color: var(--ink-soft); margin: 0 0 1rem; }
+aside#detail dl { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0 0 1rem; }
+aside#detail dt { color: var(--ink-soft); }
+aside#detail dd { margin: 0; overflow-wrap: anywhere; }
+aside#detail h3 { font-size: 1rem; margin: 1.25rem 0 .4rem; }
+pre, code { font-family: var(--code); font-size: 12.5px; }
+pre { background: var(--paper); padding: .75rem; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; margin: 0; }
+.pill { display: inline-block; padding: 0 .45rem; border-radius: 3px; font-size: 12.5px; background: var(--paper); margin: 0 .25rem .25rem 0; }
+.pill.go { background: #D6ECDF; color: #1D5E3A; }
+.pill.stop { background: #F4D7D3; color: #8E2A20; }
+.pill.trace { background: #F8E7BF; color: var(--trace-ink); }
+.muted { color: var(--ink-soft); }
+.empty { color: var(--ink-soft); }
+
+section.lower { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; margin-top: 2rem; }
+@media (max-width: 900px) { section.lower { grid-template-columns: 1fr; } }
+section.lower h2 { font-size: 1.35rem; margin: 0 0 .75rem; }
+
+form#try { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem 1rem; }
+form#try label { display: grid; gap: .25rem; color: var(--ink-soft); }
+form#try .wide { grid-column: 1 / -1; }
+form#try input, form#try select, form#try textarea {
+  background: var(--paper-2); border: 1.5px solid var(--steel); border-radius: 4px; padding: .45rem .6rem; color: var(--ink);
+}
+form#try textarea { font-family: var(--code); font-size: 12.5px; min-height: 11rem; resize: vertical; }
+.samples { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.samples span { color: var(--ink-soft); }
+button.ghost { background: transparent; border: 1.5px solid var(--steel); border-radius: 4px; padding: .2rem .6rem; cursor: pointer; }
+button.ghost:hover { border-color: var(--ink); }
+button.primary { background: var(--ink); color: var(--paper-2); border: 0; border-radius: 4px; padding: .55rem 1.1rem; cursor: pointer; font-family: var(--sign); font-size: 1rem; }
+button.primary:hover { background: #24384B; }
+button.ghost.small { font-size: .85rem; padding: .1rem .5rem; }
+.actions { display: flex; gap: .5rem; flex-wrap: wrap; margin: .75rem 0; align-items: center; }
+.note { color: var(--ink-soft); font-size: .9rem; }
+#silences form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr) auto; gap: .75rem; align-items: end; }
+#silences form input { min-width: 0; }
+#silences form label { display: grid; gap: .25rem; color: var(--ink-soft); }
+#silences form input { background: var(--paper-2); border: 1.5px solid var(--steel); border-radius: 4px; padding: .4rem .6rem; color: var(--ink); }
+@media (max-width: 760px) { #silences form { grid-template-columns: 1fr; } }
+
+ol.trace { list-style: none; padding: 0; margin: 0 0 1rem; counter-reset: step; }
+ol.trace li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .5rem; padding: .3rem 0; border-bottom: 1px solid var(--paper); }
+ol.trace li::before { content: counter(step); font-family: var(--sign); color: var(--steel-dark); text-align: right; }
+ol.trace li.hit::before { color: var(--trace-ink); }
+ol.trace .why { color: var(--ink-soft); font-size: 13px; }
+.bubble { background: var(--paper-2); border-left: 4px solid var(--steel); padding: .6rem .9rem; border-radius: 0 4px 4px 0; margin: 0 0 .75rem; }
+.bubble.loud { border-left-color: var(--trace); }
+.bubble .meta { font-size: 13px; color: var(--ink-soft); margin-bottom: .3rem; }
+.bubble .meta b { font-family: var(--sign); color: var(--ink); font-size: 14px; }
+.bubble .msg p { margin: .2rem 0; }
+.bubble .msg ul { margin: .2rem 0; padding-left: 1.2rem; }
+.bubble .msg pre { background: var(--paper); }
+.error { color: var(--stop); }
+
+#events, #audit, #silences { grid-column: 1 / -1; margin-top: 2rem; }
+#events h2 { font-size: 1.35rem; margin: 0 0 .75rem; }
+table { width: 100%; border-collapse: collapse; background: var(--paper-2); border-radius: 6px; overflow: hidden; }
+th, td { text-align: left; padding: .45rem .8rem; border-bottom: 1px solid var(--paper); vertical-align: top; }
+th { font-family: var(--sign); font-weight: 700; color: var(--ink-soft); }
+td.time { white-space: nowrap; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .4rem; background: var(--steel-dark); vertical-align: baseline; }
+.dot.queued, .dot.delivered, .dot.fallback { background: var(--go); } .dot.dropped { background: var(--stop); }
+.dot.rejected, .dot.error, .dot.failed { background: var(--stop); outline: 2px solid #F4D7D3; }
+.dot.duplicate { background: var(--steel); }
+.dot.pending { background: var(--trace); }
+.filters { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin: 0 0 .75rem; align-items: end; }
+.filters label { display: grid; gap: .25rem; color: var(--ink-soft); }
+.filters .grow { flex: 1 1 16rem; }
+.filters select, .filters input { background: var(--paper-2); border: 1.5px solid var(--steel); border-radius: 4px; padding: .4rem .6rem; color: var(--ink); }
+#audit tbody tr { cursor: pointer; }
+#audit tbody tr:hover { background: var(--paper); }
+#audit tbody tr.sel { background: #F8E7BF; }
+#audit tbody tr:focus-visible { outline: 3px solid var(--trace); outline-offset: -3px; }
+ul.attempts { list-style: none; padding: 0; margin: .4rem 0 0; font-size: 13px; }
+ul.attempts li { display: grid; grid-template-columns: 6.5rem 1fr; gap: .5rem; padding: .15rem 0; }
+ul.attempts .ok { color: var(--go); }
+ul.attempts .bad { color: var(--stop); overflow-wrap: anywhere; }
+.nodes { display: inline-flex; gap: .5rem; align-items: center; }
+.nodes .n { display: inline-flex; align-items: center; gap: .25rem; font-family: var(--sign); }
+.nodes .n i { width: .55rem; height: .55rem; border-radius: 50%; background: var(--go); display: inline-block; }
+.nodes .n.down i { background: var(--stop); }
+.nodes .n.lead { text-decoration: underline; text-decoration-color: var(--trace); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.evt-h { font-family: var(--sign); margin: 1rem 0 .4rem; }
+.dot.heartbeat { background: var(--trace); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* Wide screens: the detail panel keeps its own column all the way down and
+   follows the scroll, so it never covers the audit log or the tracer. */
+@media (min-width: 1101px) {
+  aside#detail { grid-column: 2; grid-row: 1 / span 6; }
+  section.lower, #events, #audit, #silences { grid-column: 1; }
+}
+@media (min-width: 1101px) and (max-width: 1600px) {
+  section.lower { grid-template-columns: minmax(0, 1fr); } /* form above its result */
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>stellwerk</h1>
+  <p>Sources on the left, rules in the order they are checked, destinations on the right.</p>
+  <div class="counts" aria-live="polite">
+    <span><b id="c-src">0</b>sources</span>
+    <span><b id="c-rules">0</b>rules</span>
+    <span><b id="c-dest">0</b>destinations</span>
+    <span class="nodes" id="nodes" title="Cluster nodes, the underlined one leads"></span>
+    <button class="ghost small" id="canary" type="button" hidden title="Send the test message through the whole chain now">Canary</button>
+    <button class="ghost small" id="reload" type="button" hidden title="Read the config files again and apply rules, sources and destinations">Reload config</button>
+    <span class="live" id="live"><i></i><span id="live-text">Live</span></span>
+  </div>
+</header>
+
+<main>
+  <div>
+    <div id="yard-wrap"><svg id="yard" role="group" aria-label="Dataflow from sources through rules to destinations"></svg></div>
+  </div>
+
+  <aside id="detail" aria-live="polite">
+    <h2>Pick something</h2>
+    <p class="kind">Select a source, rule, heartbeat or destination in the yard to see how it is wired. Trace a payload below to watch its path.</p>
+  </aside>
+
+  <section class="lower">
+    <div>
+      <h2>Try a payload</h2>
+      <form id="try">
+        <div class="samples wide" id="samples"><span>Samples:</span></div>
+        <label>Source<input id="t-source" list="sources-list" required value="alertmanager" autocomplete="off"></label>
+        <label>Query parameters<input id="t-query" placeholder="host=nas&amp;env=prod"></label>
+        <label class="wide">Body<textarea id="t-body" spellcheck="false"></textarea></label>
+        <div class="wide"><button class="primary" type="submit">Trace this payload</button> <span class="muted" id="t-kind">Nothing is sent.</span></div>
+      </form>
+      <datalist id="sources-list"></datalist>
+    </div>
+    <div id="result">
+      <h2>Result</h2>
+      <p class="empty">Trace a payload to see which rules it passes, why each one did or did not match, and the message each destination would get.</p>
+    </div>
+  </section>
+
+  <section id="silences" hidden>
+    <h2>Silences</h2>
+    <p class="note">A silence mutes matching events for a while, e.g. during maintenance. They still show up in the audit log as silenced. Match on <code>source=</code>, <code>status=</code> or any label, e.g. <code>source=k8s* severity=warning</code>. A heartbeat alarm is muted with <code>heartbeat=&lt;name&gt;</code>.</p>
+    <form id="silence-form">
+      <label>Matchers<input id="s-match" required placeholder="source=alertmanager namespace=media" autocomplete="off"></label>
+      <label>For<input id="s-for" required value="2h" placeholder="30m, 2h, 1d"></label>
+      <label>Comment<input id="s-comment" placeholder="NAS disk swap"></label>
+      <button class="primary" type="submit">Mute</button>
+    </form>
+    <p class="note" id="s-msg" role="status"></p>
+    <table>
+      <thead><tr><th>Mutes</th><th>Until</th><th>By</th><th>Comment</th><th></th></tr></thead>
+      <tbody id="silence-body"></tbody>
+    </table>
+  </section>
+
+  <section id="audit">
+    <h2 id="audit-h">Audit log</h2>
+    <form class="filters" id="audit-filter" role="search">
+      <label>Source<select id="a-source"><option value="">all</option></select></label>
+      <label>Verdict<select id="a-verdict">
+        <option value="">all</option><option>delivered</option><option>fallback</option><option>failed</option><option>pending</option>
+        <option>dropped</option><option>silenced</option><option>unmatched</option><option>duplicate</option><option>rejected</option>
+        <option>heartbeat</option><option>error</option></select></label>
+      <label class="grow">Search<input id="a-q" type="search" placeholder="Text in payload, labels, reasons or errors"></label>
+    </form>
+    <table>
+      <thead><tr><th>Time</th><th>Source</th><th>Verdict</th><th>Rules</th><th>Sent to</th></tr></thead>
+      <tbody id="audit-body"><tr><td colspan="5" class="empty">Nothing received since this node started. Point a sender at /in/&lt;source&gt;, every message will show up here.</td></tr></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+let flows = null, selected = null, traced = null, auditEntry = null, auditOn = true;
+const $ = (s) => document.querySelector(s);
+function el(tag, attrs = {}, text) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function svg(tag, attrs = {}, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function globToRe(g) {
+  let re = "";
+  for (const ch of g) re += ch === "*" ? ".*" : ch === "?" ? "." : /[\\^$.|+(){}]/.test(ch) ? "\\" + ch : ch;
+  return new RegExp("^" + re + "$");
+}
+const sourceMatches = (rule, src) => !rule.source || globToRe(rule.source).test(src);
+const pretty = (d) => d.replace(/(\d+[hm])0s$/, "$1").replace(/(\d+h)0m$/, "$1");
+function ago(t) {
+  if (!t || t.startsWith("0001")) return "never";
+  const s = Math.max(0, (Date.now() - new Date(t)) / 1000);
+  if (s < 60) return Math.round(s) + "s ago";
+  if (s < 3600) return Math.round(s / 60) + "m ago";
+  if (s < 86400) return Math.round(s / 3600) + "h ago";
+  return Math.round(s / 86400) + "d ago";
+}
+function conditionText(r) {
+  const parts = [];
+  if (r.source) parts.push("source " + r.source);
+  if (r.status) parts.push("status " + r.status);
+  for (const [k, v] of Object.entries(r.labels || {})) parts.push(k + " " + v);
+  for (const [k, v] of Object.entries(r.fields || {})) parts.push(k + " " + v);
+  if (r.expr) parts.push("expr");
+  return parts.length ? parts.join(", ") : "everything";
+}
+const destVia = (alias) => {
+  const d = flows.destinations.find((x) => x.alias === alias) || {};
+  return d.account && d.account !== "default" ? `${d.type} as ${d.account}` : d.type || "";
+};
+
+// ---------- yard ----------
+const W = 1000, ROW = 58, TOP = 56, SRC_X = 150, TRUNK_X = 300, DEST_X = 830, STRAIGHT = 390;
+const branch = (y, ty) => `M${TRUNK_X} ${y} H${TRUNK_X + STRAIGHT} C ${TRUNK_X + STRAIGHT + 90} ${y}, ${DEST_X - 90} ${ty}, ${DEST_X - 12} ${ty}`;
+
+function drawYard() {
+  const yard = $("#yard");
+  yard.textContent = "";
+  const { sources, routes, destinations, heartbeats, stats } = flows;
+  const hbs = heartbeats || [];
+  const rows = routes.length + hbs.length;
+  const firstUse = (alias) => {
+    const h = hbs.findIndex((x) => x.to.includes(alias));
+    if (h >= 0) return h - 100;
+    const i = routes.findIndex((r) => !r.drop && (r.to || []).includes(alias));
+    return i < 0 ? 1e6 : i;
+  };
+  const dests = [...destinations].sort((a, b) => firstUse(a.alias) - firstUse(b.alias));
+  const rightCount = dests.length + 2; // plus "Dropped" and "No rule matched"
+  const H = TOP * 2 + Math.max(rows + 1, sources.length, rightCount) * ROW;
+  yard.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+  const span = (n) => (n <= 1 ? 0 : (H - TOP * 2 - ROW) / (n - 1));
+  const srcY = (i) => TOP + ROW / 2 + i * Math.min(ROW, span(sources.length) || ROW);
+  const rowY = (i) => TOP + ROW / 2 + i * ROW;
+  const ruleY = (i) => rowY(i + hbs.length);
+  const rightY = (i) => TOP + ROW / 2 + i * Math.min(ROW * 1.15, span(rightCount) || ROW);
+  const entryY = TOP + ROW / 2 - 34;
+  const endY = ruleY(routes.length - 1) + ROW * 0.75;
+
+  const gTracks = svg("g"), gNodes = svg("g");
+  yard.append(gTracks, gNodes);
+  const reg = { src: {}, rule: {}, dest: {}, hb: {} };
+  reg.trunk = svg("path", { class: "track trunk", d: `M${TRUNK_X} ${entryY} V${endY}` });
+  gTracks.append(reg.trunk);
+
+  const pos = {};
+  dests.forEach((d, i) => (pos[d.alias] = rightY(i)));
+  pos.__drop = rightY(dests.length);
+  pos.__none = Math.max(endY, pos.__drop + 46); // never on top of "Dropped" in small yards
+
+  sources.forEach((s, i) => {
+    const y = srcY(i);
+    const p = svg("path", { class: "track", d: `M${SRC_X + 10} ${y} C ${SRC_X + 80} ${y}, ${TRUNK_X - 60} ${entryY}, ${TRUNK_X} ${entryY}` });
+    gTracks.append(p);
+    const st = stats.sources[s.name];
+    const g = node(gNodes, "source", s.name, `Source ${s.name}`);
+    g.append(svg("rect", { class: "hit", x: 4, y: y - 22, width: SRC_X + 12, height: 44 }));
+    g.append(svg("circle", { class: "src-dot", cx: SRC_X + 6, cy: y, r: 6 }));
+    g.append(svg("text", { x: SRC_X - 8, y: y + 1, "text-anchor": "end", "font-size": 16, "dominant-baseline": "middle" }, s.name));
+    g.append(svg("text", { class: "small", x: SRC_X - 8, y: y + 17, "text-anchor": "end" }, st ? `${s.kind}, ${st.received} in, ${ago(st.lastSeen)}` : s.kind));
+    reg.src[s.name] = { g, path: p };
+  });
+
+  const branchesFor = (y, targets, cls) => targets.map((alias) => {
+    const p = svg("path", { class: "track" + cls, d: branch(y, pos[alias] ?? pos.__none) });
+    gTracks.append(p);
+    return { alias, path: p };
+  });
+
+  hbs.forEach((h, i) => {
+    const y = rowY(i);
+    const g = node(gNodes, "heartbeat", h.name, `Heartbeat ${h.name}`);
+    g.append(svg("rect", { class: "hit", x: TRUNK_X - 30, y: y - 42, width: STRAIGHT + 40, height: 54 }));
+    const bad = h.missing || h.failed;
+    g.append(svg("circle", { class: "switch", cx: TRUNK_X, cy: y, r: 7, style: bad ? "stroke:var(--stop);fill:var(--stop)" : "" }));
+    g.append(svg("text", { x: TRUNK_X + 20, y: y - 24, "font-size": 15 }, "Heartbeat " + h.name));
+    const from = h.source ? `from ${h.source}` : "pinged by URL";
+    const now = h.failed ? "Failed." : h.missing ? "Missing now." : "Last seen " + ago(h.lastSeen) + ".";
+    g.append(svg("text", { class: "small", x: TRUNK_X + 20, y: y - 8 }, `${from}, alerts after ${pretty(h.timeout)} of silence. ${now}`));
+    reg.hb[h.name] = { g, branches: branchesFor(y, h.to, " heartbeat") };
+  });
+
+  routes.forEach((r, i) => {
+    const y = ruleY(i);
+    const st = stats.routes[r.name];
+    const g = node(gNodes, "rule", r.name, `Rule ${i + 1}, ${r.name}`);
+    g.append(svg("rect", { class: "hit", x: TRUNK_X - 44, y: y - 42, width: STRAIGHT + 54, height: 54 }));
+    g.append(svg("text", { class: "num", x: TRUNK_X - 16, y: y + 1, "text-anchor": "end", "dominant-baseline": "middle" }, String(i + 1)));
+    const sw = r.continue
+      ? svg("rect", { class: "switch" + (r.loud ? " loud" : ""), x: TRUNK_X - 7, y: y - 7, width: 14, height: 14, transform: `rotate(45 ${TRUNK_X} ${y})` })
+      : svg("circle", { class: "switch" + (r.loud ? " loud" : ""), cx: TRUNK_X, cy: y, r: 7 });
+    g.append(sw);
+    g.append(svg("text", { x: TRUNK_X + 20, y: y - 24, "font-size": 15 }, r.name));
+    let sub = conditionText(r);
+    if (sub.length > 62) sub = sub.slice(0, 60) + "…";
+    g.append(svg("text", { class: "small", x: TRUNK_X + 20, y: y - 8 }, sub));
+    if (st && st.matched) g.append(svg("text", { class: "count", x: TRUNK_X + STRAIGHT, y: y - 8, "text-anchor": "end" }, `${st.matched}× matched`));
+    const branches = r.drop ? branchesFor(y, ["__drop"], " branch-drop") : branchesFor(y, r.to || [], "");
+    reg.rule[r.name] = { g, sw, rule: r, branches };
+  });
+
+  dests.forEach((d) => {
+    const y = pos[d.alias];
+    const st = stats.destinations[d.alias];
+    const g = node(gNodes, "destination", d.alias, `Destination ${d.alias}`);
+    g.append(svg("rect", { class: "hit", x: DEST_X - 16, y: y - 22, width: W - DEST_X + 10, height: 44 }));
+    const plat = svg("rect", { class: st && st.delivered ? "platform" : "buffer-idle", x: DEST_X - 12, y: y - 9, width: 10, height: 18, rx: 2 });
+    g.append(plat);
+    g.append(svg("text", { x: DEST_X + 8, y: y + 1, "font-size": 16, "dominant-baseline": "middle" }, d.alias));
+    const sent = st ? `${st.delivered} sent${st.failed ? ", " + st.failed + " failed" : ""}` : "nothing sent";
+    const via = d.account && d.account !== "default" ? `${d.target}/${d.account}` : d.target;
+    const fb = (d.fallback || []).length ? `, ↪ ${d.fallback.join(", ")}` : "";
+    g.append(svg("text", { class: "small", x: DEST_X + 8, y: y + 17 }, `${via}, ${sent}${fb}`));
+    reg.dest[d.alias] = { g, plat };
+  });
+  for (const [kind, alias, label, sub, cls] of [["dropped", "__drop", "Dropped", "drop rules end here", "buffer"], ["unmatched", "__none", "No rule matched", "end of the line", "buffer-idle"]]) {
+    const y = pos[alias];
+    const g = node(gNodes, kind, kind, label);
+    g.append(svg("rect", { class: "hit", x: DEST_X - 16, y: y - 22, width: W - DEST_X + 10, height: 44 }));
+    const plat = svg("rect", { class: cls, x: DEST_X - 14, y: y - 11, width: 6, height: 22 });
+    g.append(plat);
+    g.append(svg("text", { x: DEST_X + 8, y: y + 1, "font-size": 16, "dominant-baseline": "middle", fill: "var(--ink-soft)" }, label));
+    g.append(svg("text", { class: "small", x: DEST_X + 8, y: y + 17 }, sub));
+    reg.dest[alias] = { g, plat };
+  }
+  reg.endPath = svg("path", { class: "track branch-drop", d: pos.__none === endY ? `M${TRUNK_X} ${endY} H${DEST_X - 16}` : branch(endY, pos.__none) });
+  gTracks.append(reg.endPath);
+  reg.geo = { entryY, endY, ruleY, rowY, gTracks };
+  flows._reg = reg;
+  applyHighlight();
+}
+
+function node(parent, kind, id, label) {
+  const g = svg("g", { class: "node", tabindex: 0, role: "button", "aria-label": label });
+  g.dataset.kind = kind; g.dataset.id = id;
+  g.addEventListener("click", () => select(kind, id));
+  g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(kind, id); } });
+  parent.append(g);
+  return g;
+}
+
+const dim = (...els) => els.forEach((e) => e && e.classList.add("dim"));
+
+function applyHighlight() {
+  const reg = flows && flows._reg;
+  if (!reg) return;
+  document.querySelectorAll("#yard .dim, #yard .lit, #yard .lit-fill, #yard .selected").forEach((e) => e.classList.remove("dim", "lit", "lit-fill", "selected"));
+  document.querySelectorAll("#yard .trunk-trace").forEach((e) => e.remove());
+  if (selected) {
+    const g = document.querySelector(`#yard .node[data-kind="${selected.kind}"][data-id="${CSS.escape(selected.id)}"]`);
+    if (g) g.classList.add("selected");
+  }
+  const rules = Object.entries(reg.rule), hbs = Object.entries(reg.hb);
+  if (traced) {
+    const hitRules = new Set(), reached = new Set(), hitHb = new Set();
+    let stopY = reg.geo.entryY;
+    for (const ev of traced.events) {
+      if (ev.heartbeat) { hitHb.add(ev.heartbeat); continue; }
+      ev.trace.filter((t) => t.matched).forEach((t) => hitRules.add(t.route));
+      ev.deliveries.forEach((d) => reached.add(d.destination));
+      if (ev.droppedBy) reached.add("__drop");
+      if (!ev.droppedBy && !ev.deliveries.length) reached.add("__none");
+      const idx = ev.trace.findIndex((t) => t.matched && !(flows.routes.find((r) => r.name === t.route) || {}).continue);
+      stopY = Math.max(stopY, idx >= 0 ? reg.geo.ruleY(idx) : reg.geo.endY);
+    }
+    for (const [name, s] of Object.entries(reg.src)) name === traced.source ? s.path.classList.add("lit") : dim(s.g, s.path);
+    if (hitRules.size || reached.has("__none")) reg.geo.gTracks.append(svg("path", { class: "track trunk lit trunk-trace", d: `M${TRUNK_X} ${reg.geo.entryY} V${stopY}` }));
+    for (const [name, r] of rules) {
+      if (hitRules.has(name)) { r.sw.classList.add("lit-fill"); r.branches.forEach((b) => b.path.classList.add("lit")); }
+      else { dim(r.g); r.branches.forEach((b) => dim(b.path)); }
+    }
+    for (const [name, h] of hbs) {
+      if (hitHb.has(name)) h.g.classList.add("selected");
+      else { dim(h.g); h.branches.forEach((b) => dim(b.path)); }
+    }
+    reached.has("__none") ? reg.endPath.classList.add("lit") : dim(reg.endPath);
+    for (const [alias, d] of Object.entries(reg.dest)) reached.has(alias) ? d.plat.classList.add("lit-fill") : dim(d.g);
+    return;
+  }
+  if (!selected) return;
+  if (selected.kind === "source") {
+    for (const [, r] of rules) if (!sourceMatches(r.rule, selected.id)) { dim(r.g); r.branches.forEach((b) => dim(b.path)); }
+    for (const [name, s] of Object.entries(reg.src)) if (name !== selected.id) dim(s.g, s.path);
+    for (const [name, h] of hbs) if (flows.heartbeats.find((x) => x.name === name).source !== selected.id) { dim(h.g); h.branches.forEach((b) => dim(b.path)); }
+  } else if (selected.kind === "destination" || selected.kind === "dropped") {
+    const alias = selected.kind === "dropped" ? "__drop" : selected.id;
+    for (const [, r] of rules) r.branches.forEach((b) => { if (b.alias !== alias) dim(b.path); });
+    for (const [, r] of rules) if (!r.branches.some((b) => b.alias === alias)) dim(r.g);
+    for (const [, h] of hbs) { h.branches.forEach((b) => { if (b.alias !== alias) dim(b.path); }); if (!h.branches.some((b) => b.alias === alias)) dim(h.g); }
+  }
+}
+
+// ---------- detail panel ----------
+function select(kind, id) { selected = { kind, id }; traced = null; renderDetail(); applyHighlight(); }
+
+function dl(pairs) {
+  const d = el("dl");
+  for (const [k, v] of pairs) {
+    if (v === undefined || v === null || v === "") continue;
+    d.append(el("dt", {}, k));
+    const dd = el("dd");
+    if (v instanceof Node) dd.append(v); else dd.textContent = v;
+    d.append(dd);
+  }
+  return d;
+}
+function pills(items, cls = "") {
+  const f = document.createDocumentFragment();
+  items.forEach((t) => f.append(el("span", { class: "pill " + cls }, t)));
+  return f;
+}
+function para(...children) { const p = el("p"); p.append(...children); return p; }
+
+function renderDetail() {
+  const a = $("#detail");
+  a.textContent = "";
+  if (!selected || !flows) return;
+  const { kind, id } = selected, st = flows.stats;
+  if (kind === "audit") {
+    renderAuditDetail(a);
+  } else if (kind === "source") {
+    const s = flows.sources.find((x) => x.name === id);
+    const info = flows.kinds.find((k) => k.kind === s.kind) || {};
+    const rules = flows.routes.filter((r) => sourceMatches(r, id));
+    const ss = st.sources[id];
+    a.append(el("h2", {}, id), el("p", { class: "kind" }, `Source of kind ${s.kind}`));
+    a.append(dl([
+      ["Endpoint", el("code", {}, "POST " + s.endpoint)],
+      ["Token", s.auth === "own" ? "its own token" : "the shared token of \"*\""],
+      ["Received", ss ? `${ss.received}, last ${ago(ss.lastSeen)}` : "nothing on this node yet"],
+      ["Decoder", info.description],
+    ]));
+    a.append(el("h3", {}, "Rules that can catch it, in order"), para(pills(rules.map((r) => `${r.index + 1} ${r.name}`))));
+    const hb = flows.heartbeats.filter((h) => h.source === id);
+    if (hb.length) a.append(el("h3", {}, "Heartbeats"), para(pills(hb.map((h) => h.name), "trace")));
+    a.append(el("h3", {}, "Send a test"));
+    a.append(el("pre", {}, `curl -H "Authorization: Bearer $TOKEN" \\\n  -d '{"title":"Hello","message":"from ${id}"}' \\\n  https://your-host${s.endpoint}`));
+  } else if (kind === "rule") {
+    const r = flows.routes.find((x) => x.name === id);
+    const rs = st.routes[id];
+    a.append(el("h2", {}, r.name), el("p", { class: "kind" }, `Rule ${r.index + 1} of ${flows.routes.length}`));
+    a.append(dl([
+      ["Does", r.drop ? "drops the event" : "sends to " + (r.to || []).map((t) => `${t} (${destVia(t)})`).join(", ")],
+      ["How", r.drop ? "" : (r.loud ? "loud, phones notify" : "quiet, no push") + `, priority ${r.priority}`],
+      ["Digest", r.digest ? `collected, one summary per destination every ${pretty(r.digest)}` : ""],
+      ["Mentions", (r.mention || []).join(", ")],
+      ["Afterwards", r.continue ? "keeps checking the next rules" : "stops, later rules are skipped"],
+      ["Template", r.drop ? "" : r.template],
+      ["Matched", rs ? `${rs.matched}, last ${ago(rs.lastMatch)}` : "not on this node yet"],
+      ["Delivered", rs && !r.drop ? `${rs.delivered}${rs.failed ? `, ${rs.failed} failed` : ""}` : ""],
+      ["Last error", rs && rs.lastError ? rs.lastError : ""],
+    ]));
+    a.append(el("h3", {}, "Matches when"));
+    const conds = [];
+    if (r.source) conds.push(["source", r.source]);
+    if (r.status) conds.push(["status", r.status]);
+    for (const [k, v] of Object.entries(r.labels || {})) conds.push(["label " + k, v]);
+    for (const [k, v] of Object.entries(r.fields || {})) conds.push(["field " + k, v]);
+    if (conds.length) a.append(dl(conds.map(([k, v]) => [k, el("code", {}, v)])));
+    else if (!r.expr) a.append(el("p", { class: "muted" }, "Always. This rule catches everything that reaches it."));
+    if (r.expr) a.append(el("p", { class: "muted" }, `and this ${r.engine === "cel" ? "CEL" : r.engine} expression is true:`), el("pre", {}, r.expr));
+    if (!r.drop) {
+      const t = flows.templates.find((x) => x.name === r.template);
+      a.append(el("h3", {}, r.template === "auto" ? "Template: picked by source kind" : `Template ${r.template}${t && t.builtin ? " (built in)" : ""}`));
+      if (t) a.append(el("pre", {}, t.source));
+      else a.append(el("p", { class: "muted" }, "Uses the built-in template named like the source kind, otherwise generic."));
+    }
+  } else if (kind === "heartbeat") {
+    const h = flows.heartbeats.find((x) => x.name === id);
+    a.append(el("h2", {}, h.name), el("p", { class: "kind" }, "Heartbeat"));
+    a.append(dl([
+      ["Listens for", h.source ? `${h.source}${Object.keys(h.labels || {}).length ? " with " + Object.entries(h.labels).map(([k, v]) => `${k}=${v}`).join(", ") : ""}` : ""],
+      ["Ping URL", h.ping ? el("code", {}, `/ping/${h.name}?token=…`) : ""],
+      ["On failure", h.ping ? el("code", {}, `/ping/${h.name}/fail`) : ""],
+      ["Alerts after", pretty(h.timeout) + " of silence"],
+      ["Sends to", h.to.join(", ")],
+      ["Last heartbeat", ago(h.lastSeen)],
+      ["State", h.failed ? "reported a failure, alert sent" : h.missing ? "missing, alert sent" : "healthy"],
+      ["Raised by", flows.cluster.enabled ? `the leader, currently ${flows.cluster.leader}` : "this node"],
+    ]));
+    a.append(el("p", { class: "muted" }, "Heartbeats are consumed here and never reach the rules. In a cluster every node knows the last heartbeat, only the leader alerts."));
+  } else if (kind === "destination") {
+    const d = flows.destinations.find((x) => x.alias === id);
+    const t = flows.targets.find((x) => x.target === d.target && x.account === d.account) || {};
+    const ds = st.destinations[id];
+    const siblings = flows.targets.filter((x) => x.target === d.target).length;
+    a.append(el("h2", {}, id), el("p", { class: "kind" }, `Destination in ${d.type} target ${d.target}`));
+    a.append(dl([
+      ["Address", d.address ? el("code", {}, d.address) : "none, the target decides"],
+      ["Account", siblings > 1 || d.account !== "default" ? `${d.account} (one of ${siblings} in ${d.target})` : ""],
+      ["Sends", t.ready ? "ready" : "not ready yet"],
+      ["Problems", (t.problems || []).length ? t.problems.join("; ") : ""],
+      ["Sent", ds ? `${ds.delivered}, last ${ago(ds.lastSent)}` : "nothing from this node yet"],
+      ["Failed", ds && ds.failed ? String(ds.failed) : ""],
+      ["If it fails", (d.fallback || []).length ? "falls back to " + d.fallback.join(", ") : "no fallback, the failure is logged"],
+    ]));
+    const backs = flows.destinations.filter((x) => (x.fallback || []).includes(id)).map((x) => x.alias);
+    if (backs.length) a.append(el("p", { class: "muted" }, `Stands in for ${backs.join(", ")} when that fails.`));
+    const rules = flows.routes.filter((x) => (x.to || []).includes(id));
+    a.append(el("h3", {}, "Fed by"), para(pills(rules.map((x) => `${x.index + 1} ${x.name}`), "go"), pills(flows.heartbeats.filter((h) => h.to.includes(id)).map((h) => h.name), "trace")));
+  } else if (kind === "dropped") {
+    a.append(el("h2", {}, "Dropped"), el("p", { class: "kind" }, "Events swallowed on purpose"));
+    a.append(para(pills(flows.routes.filter((r) => r.drop).map((r) => `${r.index + 1} ${r.name}`), "stop")));
+  } else if (kind === "unmatched") {
+    a.append(el("h2", {}, "No rule matched"), el("p", { class: "kind" }, "End of the line"));
+    a.append(el("p", {}, "Events that pass every rule without a match end here and are not sent anywhere. Add a catch-all rule at the bottom if nothing should get lost."));
+  }
+}
+
+// ---------- header and events ----------
+function renderNodes() {
+  const box = $("#nodes");
+  box.textContent = "";
+  const c = flows.cluster;
+  box.hidden = !c.enabled; // single node: nothing to show
+  if (!c.enabled) return;
+  const peers = c.peers;
+  for (const p of peers) {
+    const s = el("span", { class: "n" + (p.alive ? "" : " down") + (p.id === c.leader ? " lead" : ""), title: p.self ? "this node" : p.alive ? "up" : (p.error || "down") });
+    s.append(el("i"), document.createTextNode(p.id + (p.self && peers.length > 1 ? " (this)" : "")));
+    box.append(s);
+  }
+}
+
+// ---------- audit log ----------
+const verdictWords = { delivered: "delivered", fallback: "delivered via fallback", silenced: "silenced", pending: "sending", failed: "failed", dropped: "dropped", unmatched: "no rule matched",
+  duplicate: "duplicate, skipped", rejected: "rejected", error: "error", heartbeat: "heartbeat" };
+const statusPill = { sent: "go", failed: "stop", pending: "trace" };
+
+function emptyRow(body, text) {
+  const tr = el("tr");
+  tr.append(el("td", { colspan: 5, class: "empty" }, text));
+  body.append(tr);
+}
+
+async function loadAudit() {
+  if (!auditOn) return;
+  const q = new URLSearchParams({ limit: "100" });
+  if ($("#a-source").value) q.set("source", $("#a-source").value);
+  if ($("#a-verdict").value) q.set("verdict", $("#a-verdict").value);
+  if ($("#a-q").value.trim()) q.set("q", $("#a-q").value.trim());
+  let res;
+  try {
+    const r = await fetch("api/audit?" + q, { cache: "no-store" });
+    res = await r.json();
+  } catch (e) { return; }
+  const body = $("#audit-body");
+  if (!res.enabled) {
+    auditOn = false;
+    body.textContent = "";
+    emptyRow(body, "The audit log is switched off (audit.enabled: false).");
+    return;
+  }
+  body.textContent = "";
+  if (!res.entries.length) {
+    const filtered = q.has("source") || q.has("verdict") || q.has("q");
+    emptyRow(body, filtered ? "No entry matches these filters." :
+      "Nothing received since this node started. Point a sender at /in/<source>, every message will show up here.");
+    return;
+  }
+  for (const e of res.entries) {
+    const tr = el("tr", { tabindex: 0, class: selected && selected.kind === "audit" && selected.id === e.id ? "sel" : "" });
+    tr.append(el("td", { class: "time" }, new Date(e.time).toLocaleTimeString()));
+    tr.append(el("td", {}, e.source + (e.status ? ` (${e.status})` : "")));
+    const o = el("td");
+    const inDigest = e.verdict === "pending" && (e.destinations || []).every((d) => d.status !== "pending" || d.digest);
+    o.append(el("span", { class: "dot " + e.verdict }), document.createTextNode(inDigest ? "waiting for the digest" : verdictWords[e.verdict] || e.verdict));
+    if (e.reason && e.verdict === "rejected") o.append(el("div", { class: "why" }, e.reason));
+    tr.append(o);
+    tr.append(el("td", {}, (e.rules || []).join(", ")));
+    const to = el("td");
+    for (const d of e.destinations || []) to.append(el("span", { class: "pill " + (statusPill[d.status] || "") }, d.name + (d.attempts > 1 ? ` ×${d.attempts}` : "")));
+    tr.append(to);
+    tr.addEventListener("click", () => openAudit(e.id));
+    tr.addEventListener("keydown", (ev) => { if (ev.key === "Enter") openAudit(e.id); });
+    body.append(tr);
+  }
+}
+
+async function openAudit(id) {
+  const r = await fetch("api/audit/" + encodeURIComponent(id), { cache: "no-store" });
+  if (!r.ok) { auditEntry = { missing: id }; selected = { kind: "audit", id }; traced = null; renderDetail(); return; }
+  const e = await r.json();
+  auditEntry = e;
+  selected = { kind: "audit", id };
+  // light up the path this message took
+  const routed = e.trace && e.trace.length;
+  traced = routed || e.heartbeat ? { source: e.source, events: [{
+    trace: e.trace || [], droppedBy: e.droppedBy || "",
+    heartbeat: e.verdict === "heartbeat" ? e.heartbeat : "",
+    deliveries: (e.deliveries || []).map((d) => ({ destination: d.destination })),
+  }] } : null;
+  renderDetail();
+  applyHighlight();
+  document.querySelectorAll("#audit-body tr").forEach((tr) => tr.classList.remove("sel"));
+  $("#detail").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+  loadAudit();
+}
+
+function renderAuditDetail(a) {
+  const e = auditEntry;
+  if (!e || e.missing) {
+    a.append(el("h2", {}, "Entry gone"), el("p", {}, "This entry was pushed out of memory. Raise audit.size or enable audit.file to keep more."));
+    return;
+  }
+  a.append(el("h2", {}, `${e.source}: ${verdictWords[e.verdict] || e.verdict}`),
+    el("p", { class: "kind" }, `${new Date(e.time).toLocaleString()}${e.node ? " on node " + e.node : ""}`));
+  const labels = Object.entries(e.labels || {}).map(([k, v]) => `${k}=${v}`);
+  const lab = el("span"); lab.append(pills(labels));
+  a.append(dl([
+    ["Verdict", verdictWords[e.verdict] || e.verdict],
+    ["Why", e.reason || ""],
+    ["Repeats", e.resentFrom ? el("code", {}, e.resentFrom) : ""],
+    ["Kind", e.kind || ""],
+    ["Status", e.status || ""],
+    ["Heartbeat", e.heartbeat || ""],
+    ["Labels", labels.length ? lab : ""],
+    ["Entry", el("code", {}, e.id)],
+  ]));
+  a.append(el("h3", {}, "Received"));
+  if (e.payload) {
+    let body = e.payload;
+    try { body = JSON.stringify(JSON.parse(e.payload), null, 2); } catch (_) {}
+    a.append(el("pre", {}, body));
+    if (e.payloadTruncated) a.append(el("p", { class: "muted" }, "Cut at audit.payload_max."));
+  } else {
+    a.append(el("p", { class: "muted" }, e.kind === "heartbeat-alert" ? "Sent by stellwerk itself." : "Not kept (audit.payload is off, or the body was empty)."));
+  }
+  if (e.trace && e.trace.length) {
+    a.append(el("h3", {}, "What the rules decided"));
+    const ol = el("ol", { class: "trace" });
+    for (const t of e.trace) {
+      const li = el("li", { class: t.matched ? "hit" : "" });
+      const div = el("div");
+      div.append(el("span", { class: "sign" }, t.route + " "));
+      if (t.action === "deliver") div.append(pills(["sends"], "go"));
+      else if (t.action === "drop") div.append(pills(["drops"], "stop"));
+      else if (t.action === "skipped") div.append(el("div", { class: "why" }, "skipped, an earlier rule already handled it"));
+      if (t.reason) div.append(el("div", { class: "why" }, t.reason));
+      li.append(div);
+      ol.append(li);
+    }
+    a.append(ol);
+  }
+  if (e.deliveries && e.deliveries.length) {
+    a.append(el("h3", {}, "Sent"));
+    if (flows.actions && e.verdict !== "pending") {
+      const bar = el("div", { class: "actions" });
+      const msg = el("span", { class: "note", role: "status" });
+      const again = (failedOnly) => async () => {
+        const res = await act("POST", `api/audit/${encodeURIComponent(e.id)}/resend${failedOnly ? "?failed=true" : ""}`);
+        if (!res.ok) { msg.textContent = res.text; return; }
+        const { id } = JSON.parse(res.text);
+        msg.textContent = "Sent again as a new entry.";
+        setTimeout(() => openAudit(id), 400);
+      };
+      const all = el("button", { class: "ghost small", type: "button" }, "Send again");
+      all.addEventListener("click", again(false));
+      bar.append(all);
+      if (e.deliveries.some((d) => d.status === "failed" && d.fallbackFor === undefined)) {
+        const failed = el("button", { class: "ghost small", type: "button" }, "Send failed ones again");
+        failed.addEventListener("click", again(true));
+        bar.append(failed);
+      }
+      bar.append(msg);
+      a.append(bar);
+    }
+    for (const d of e.deliveries) {
+      const b = el("div", { class: "bubble" + (d.loud ? " loud" : "") });
+      const meta = el("div", { class: "meta" });
+      const via = d.fallbackFor !== undefined ? `fallback for ${e.deliveries[d.fallbackFor].destination}` : `via ${d.route}`;
+      meta.append(el("b", {}, d.destination), document.createTextNode(` (${d.endpoint.replace(/\/default$/, "")}) ${via} `),
+        el("span", { class: "pill " + (statusPill[d.status] || "") }, d.status === "pending" ? (d.digest ? `in the ${pretty(d.digest)} digest` : "sending") : d.status));
+      const msg = el("div", { class: "msg" });
+      msg.innerHTML = d.html; // rendered server-side from Markdown with raw HTML disabled
+      const ul = el("ul", { class: "attempts" });
+      (d.attempts || []).forEach((t, i) => {
+        const li = el("li");
+        li.append(el("span", { class: "time" }, new Date(t.time).toLocaleTimeString()));
+        li.append(t.error ? el("span", { class: "bad" }, `attempt ${i + 1} failed: ${t.error}`) : el("span", { class: "ok" }, `attempt ${i + 1} sent`));
+        ul.append(li);
+      });
+      b.append(meta, msg, ul);
+      a.append(b);
+    }
+  }
+}
+
+let auditTimer;
+$("#audit-filter").addEventListener("submit", (e) => e.preventDefault());
+["#a-source", "#a-verdict"].forEach((s) => $(s).addEventListener("change", loadAudit));
+$("#a-q").addEventListener("input", () => { clearTimeout(auditTimer); auditTimer = setTimeout(loadAudit, 250); });
+
+function fillSourceFilter() {
+  const sel = $("#a-source"), keep = sel.value;
+  const names = [...new Set([...flows.sources.map((s) => s.name), ...Object.keys(flows.stats.sources || {}), "stellwerk"])].sort();
+  sel.textContent = "";
+  sel.append(el("option", { value: "" }, "all"));
+  names.forEach((n) => sel.append(el("option", { value: n }, n === "stellwerk" ? "stellwerk (heartbeat alerts)" : n)));
+  sel.value = keep;
+}
+
+// ---------- simulate ----------
+const extraSamples = {
+  "Sonarr download": { source: "sonarr", query: "", body: JSON.stringify({ eventType: "Download", series: { title: "Severance" }, episodes: [{ seasonNumber: 2, episodeNumber: 3, title: "Who Is Alive?" }] }, null, 2) },
+  "k8s warning": { source: "k8s-events", query: "", body: JSON.stringify({ type: "Warning", reason: "BackOff", message: "Back-off restarting failed container", count: 4, involvedObject: { namespace: "media", name: "sonarr-0" } }, null, 2) },
+  "Plain text": { source: "cron", query: "host=nas", body: "Disk 91% full on /srv" },
+};
+let samplesBuilt = false;
+function buildSamples() {
+  if (samplesBuilt) return;
+  samplesBuilt = true;
+  const box = $("#samples");
+  const add = (label, s) => {
+    const b = el("button", { type: "button", class: "ghost" }, label);
+    b.addEventListener("click", () => { $("#t-source").value = s.source; $("#t-query").value = s.query; $("#t-body").value = s.body; });
+    box.append(b);
+    return s;
+  };
+  let first = null;
+  for (const k of flows.kinds) {
+    const src = (flows.sources.find((s) => s.kind === k.kind && s.auth === "own") || flows.sources.find((s) => s.kind === k.kind) || { name: k.kind }).name;
+    const label = k.kind === "alertmanager" ? "Alertmanager alert" : k.kind === "generic" ? "Generic JSON" : k.kind[0].toUpperCase() + k.kind.slice(1);
+    const s = add(label, { source: src, query: "", body: k.sample });
+    first = first || s;
+  }
+  for (const [label, s] of Object.entries(extraSamples)) add(label, s);
+  if (first) { $("#t-source").value = first.source; $("#t-body").value = first.body; }
+}
+
+$("#try").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const req = { source: $("#t-source").value.trim(), query: $("#t-query").value.trim(), body: $("#t-body").value };
+  const box = $("#result");
+  box.textContent = "";
+  box.append(el("h2", {}, "Result"));
+  let res;
+  try {
+    const r = await fetch("api/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
+    res = await r.json();
+  } catch (err) {
+    box.append(el("p", { class: "error" }, "Could not reach stellwerk: " + err.message));
+    return;
+  }
+  $("#t-kind").textContent = res.kind ? `Decoded as ${res.kind}. Nothing is sent.` : "Nothing is sent.";
+  if (res.error) { box.append(el("p", { class: "error" }, res.error)); traced = null; applyHighlight(); return; }
+  traced = { ...res, source: req.source };
+  const lastEv = res.events[res.events.length - 1];
+  const handled = lastEv && lastEv.trace.filter((t) => t.matched).pop();
+  selected = lastEv && lastEv.heartbeat ? { kind: "heartbeat", id: lastEv.heartbeat } : handled ? { kind: "rule", id: handled.route } : { kind: "unmatched", id: "unmatched" };
+  renderDetail();
+  applyHighlight();
+  $("#yard-wrap").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+
+  if (!res.events.length) box.append(el("p", {}, "The decoder produced no events."));
+  res.events.forEach((ev, n) => {
+    if (res.events.length > 1) box.append(el("h3", { class: "evt-h" }, `Event ${n + 1} of ${res.events.length}${ev.status ? ", " + ev.status : ""}`));
+    if (ev.heartbeat) { box.append(el("p", {}, `This is heartbeat ${ev.heartbeat}. It resets the timer and is not sent anywhere.`)); return; }
+    const count = ev.deliveries.length, msgs = `${count} message${count > 1 ? "s" : ""}`;
+    const summary = count && ev.silenced ? `Would send ${msgs}, but they are muted: ${ev.silenced}.`
+      : count ? `Sends ${msgs}.`
+      : ev.droppedBy ? `Dropped by ${ev.droppedBy}.` : "No rule matched, nothing is sent.";
+    box.append(el("p", {}, summary));
+    for (const d of ev.deliveries) {
+      const b = el("div", { class: "bubble" + (d.loud ? " loud" : "") });
+      const meta = el("div", { class: "meta" });
+      meta.append(el("b", {}, d.destination), document.createTextNode(` (${d.endpoint.replace(/\/default$/, "")}) via ${d.route}, ${d.loud ? "loud" : "quiet"}`));
+      const msg = el("div", { class: "msg" });
+      msg.innerHTML = d.html; // rendered server-side from Markdown with raw HTML disabled
+      b.append(meta, msg);
+      box.append(b);
+    }
+    box.append(el("h3", { class: "sign" }, "Rule by rule"));
+    const ol = el("ol", { class: "trace" });
+    for (const t of ev.trace) {
+      const li = el("li", { class: t.matched ? "hit" : "" });
+      const div = el("div");
+      div.append(el("span", { class: "sign" }, t.route + " "));
+      if (t.action === "deliver") div.append(pills(["sends"], "go"));
+      else if (t.action === "drop") div.append(pills(["drops"], "stop"));
+      else if (t.action === "skipped") div.append(el("div", { class: "why" }, "skipped, an earlier rule already handled it"));
+      if (t.reason) div.append(el("div", { class: "why" }, t.reason));
+      li.append(div);
+      ol.append(li);
+    }
+    box.append(ol);
+  });
+});
+
+// ---------- actions ----------
+// Changes carry X-Stellwerk-Action, which another web page cannot add.
+async function act(method, url, body) {
+  const r = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-Stellwerk-Action": "1" }, body: body ? JSON.stringify(body) : undefined });
+  return { ok: r.ok, text: (await r.text()).trim() };
+}
+
+function renderSilences() {
+  $("#silences").hidden = !flows.actions;
+  $("#reload").hidden = !flows.actions;
+  const body = $("#silence-body");
+  body.textContent = "";
+  if (!flows.silences.length) { emptyRow(body, "Nothing is muted."); return; }
+  for (const s of flows.silences) {
+    const tr = el("tr");
+    const parts = [];
+    if (s.match.source) parts.push("source=" + s.match.source);
+    if (s.match.status) parts.push("status=" + s.match.status);
+    for (const [k, v] of Object.entries(s.match.labels || {})) parts.push(`${k}=${v}`);
+    const mutes = el("td"); mutes.append(el("code", {}, parts.join(" ")));
+    const end = el("button", { class: "ghost small", type: "button" }, "End now");
+    end.addEventListener("click", async () => {
+      const res = await act("DELETE", "api/silences/" + encodeURIComponent(s.id));
+      $("#s-msg").textContent = res.ok ? "Silence ended." : res.text;
+      refresh();
+    });
+    const last = el("td"); last.append(end);
+    tr.append(mutes, el("td", {}, new Date(s.ends).toLocaleString()), el("td", {}, s.createdBy || ""), el("td", {}, s.comment || ""), last);
+    body.append(tr);
+  }
+}
+
+$("#silence-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const res = await act("POST", "api/silences", { matchers: $("#s-match").value, for: $("#s-for").value, comment: $("#s-comment").value });
+  $("#s-msg").textContent = res.ok ? "Muted." : res.text;
+  if (res.ok) { $("#s-match").value = ""; $("#s-comment").value = ""; }
+  refresh();
+});
+
+function renderCanary() {
+  const b = $("#canary");
+  b.hidden = !(flows.actions && flows.canaryOn);
+  const c = flows.canary;
+  b.textContent = !c ? "Canary" : c.ok ? "Canary ok" : "Canary failed";
+  b.title = c ? `Last run ${new Date(c.time).toLocaleString()}${c.ok ? "" : ": " + (c.problems || []).join("; ")}. Click to send it now.` : "Send the test message through the whole chain now";
+}
+
+$("#canary").addEventListener("click", async () => {
+  $("#canary").textContent = "Canary …";
+  const res = await act("POST", "api/canary");
+  if (!res.ok) $("#live-text").textContent = res.text;
+  refresh();
+});
+
+$("#reload").addEventListener("click", async () => {
+  const res = await act("POST", "api/reload");
+  $("#live-text").textContent = res.ok ? "Reloaded" : "Reload failed";
+  if (!res.ok) alertBox(res.text);
+  refresh();
+});
+
+function alertBox(text) {
+  const d = $("#detail");
+  d.textContent = "";
+  d.append(el("h2", {}, "Reload failed"), el("p", {}, text), el("p", { class: "kind" }, "The running configuration was kept."));
+}
+
+// ---------- data ----------
+async function refresh() {
+  try {
+    const r = await fetch("api/flows", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    const shapeChanged = !flows || JSON.stringify([data.sources, data.routes, data.destinations]) !== JSON.stringify([flows.sources, flows.routes, flows.destinations]);
+    flows = data;
+    $("#c-src").textContent = data.sources.length;
+    $("#c-rules").textContent = data.routes.length;
+    $("#c-dest").textContent = data.destinations.length;
+    const list = $("#sources-list"); list.textContent = "";
+    data.sources.forEach((s) => list.append(el("option", { value: s.name })));
+    buildSamples();
+    renderNodes();
+    $("#audit-h").textContent = data.cluster.enabled ? `Audit log of node ${data.cluster.nodeId}` : "Audit log";
+    fillSourceFilter();
+    renderSilences();
+    renderCanary();
+    drawYard();
+    if (selected && !traced && shapeChanged && selected.kind !== "audit") renderDetail();
+    loadAudit();
+    $("#live").classList.remove("stale"); $("#live-text").textContent = "Live";
+  } catch (e) {
+    $("#live").classList.add("stale"); $("#live-text").textContent = "Disconnected";
+  }
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,746 @@
+{
+  "$defs": {
+    "Audit": {
+      "additionalProperties": false,
+      "description": "Audit keeps the story of every received message: payload, the rules' verdict and every send attempt. Shown in the UI, optionally also written to a JSON lines file or the log.",
+      "properties": {
+        "enabled": {
+          "description": "default true",
+          "type": "boolean"
+        },
+        "file": {
+          "description": "JSON lines of settled entries, e.g. /data/audit.jsonl",
+          "type": "string"
+        },
+        "file_max_mb": {
+          "description": "rotate to \u003cfile\u003e.1 above this, default 50",
+          "type": "integer"
+        },
+        "log": {
+          "description": "also one log line per settled entry",
+          "type": "boolean"
+        },
+        "payload": {
+          "description": "keep request bodies, default true",
+          "type": "boolean"
+        },
+        "payload_max": {
+          "description": "bytes per body, default 16384",
+          "type": "integer"
+        },
+        "size": {
+          "description": "entries kept in memory, default 1000",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "Canary": {
+      "additionalProperties": false,
+      "description": "Canary sends a test message through the whole chain on a schedule. If it cannot be delivered, the destinations' fallbacks get it, which is the alarm. With verify_with, another Matrix account must also receive and decrypt it.",
+      "properties": {
+        "alert": {
+          "description": "where a failed verification is reported, default: the fallbacks of to",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "at": {
+          "description": "optional time of day \"09:00\" (local time zone), instead of every",
+          "type": "string"
+        },
+        "every": {
+          "description": "default 24h",
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "timeout": {
+          "description": "for verify_with, default 2m",
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "to": {
+          "description": "destinations to test, empty = off",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "verify_with": {
+          "description": "\"target/account\" that must receive it, Matrix only",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Delivery": {
+      "additionalProperties": false,
+      "properties": {
+        "breaker_cooldown": {
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "breaker_failures": {
+          "description": "After breaker_failures deliveries in a row failed (default 3, -1 = off), an account is skipped for breaker_cooldown (default 1m) and fallbacks get messages at once.",
+          "type": "integer"
+        },
+        "dedupe_window": {
+          "description": "Identical payloads from the same source within this window are delivered once.",
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "drain_timeout": {
+          "description": "On shutdown, how long to wait for running requests and queued deliveries. Keep it below Kubernetes' terminationGracePeriodSeconds.",
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "late_after": {
+          "description": "A message sent later than late_after after it came in gets a note with its age (default 10m, \"0s\" = never). One older than max_age is not sent at all (default: no limit).",
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "max_age": {
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "max_backoff": {
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "max_retries": {
+          "type": "integer"
+        },
+        "mode": {
+          "description": "sync: answer the sender only after delivery (non-2xx makes it retry, possibly on another node). async: answer once queued.",
+          "enum": [
+            "sync",
+            "async"
+          ],
+          "type": "string"
+        },
+        "queue_size": {
+          "type": "integer"
+        },
+        "spool": {
+          "description": "Spool is a SQLite file that keeps accepted deliveries until they are finished, so they survive restarts and crashes. Empty = memory only. {node} is replaced by node_id.",
+          "type": "string"
+        },
+        "timeout": {
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Destination": {
+      "additionalProperties": false,
+      "description": "Destination is a named place messages go: an account of a target plus an address in it (Matrix room ID, URL path ...). Account may be omitted when the target has exactly one.",
+      "properties": {
+        "account": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "fallback": {
+          "description": "Fallback destinations get the message when delivery here finally fails, e.g. email when the Matrix homeserver is down.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "HA": {
+      "additionalProperties": false,
+      "description": "HA is optional. Disabled (default), the node coordinates with nobody.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "interval": {
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "peers": {
+          "description": "all nodes incl. this one",
+          "items": {
+            "$ref": "#/$defs/Peer"
+          },
+          "type": "array"
+        },
+        "secret": {
+          "description": "shared bearer secret for /cluster/* calls",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Heartbeat": {
+      "additionalProperties": false,
+      "description": "Heartbeat: an event that must keep arriving. It is consumed (not routed) and an alert goes out if it stops for longer than Timeout.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "exact match, e.g. alertname: Watchdog",
+          "type": "object"
+        },
+        "mention": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "timeout": {
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "to": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "token": {
+          "description": "Token enables /ping/\u003cname\u003e and /ping/\u003cname\u003e/fail for cron jobs and scripts, like healthchecks.io. A heartbeat needs a source, a token, or both.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Log": {
+      "additionalProperties": false,
+      "description": "Log configures logging. JSON is what most Kubernetes log stacks want.",
+      "properties": {
+        "format": {
+          "description": "text (default) or json",
+          "enum": [
+            "text",
+            "json"
+          ],
+          "type": "string"
+        },
+        "level": {
+          "description": "debug, info (default), warn, error",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Match": {
+      "additionalProperties": false,
+      "description": "Match: all given conditions must hold. Values are anchored regexes, a leading \"!\" negates. Source is a glob (\"*\", \"sonarr\", \"*arr\").",
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "source": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Metrics": {
+      "additionalProperties": false,
+      "description": "Metrics serves Prometheus metrics on their own listener. Empty = off.",
+      "properties": {
+        "listen": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Peer": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "description": "base URL of the peer's main listener",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "properties": {
+        "continue": {
+          "type": "boolean"
+        },
+        "digest": {
+          "description": "Digest collects the route's messages per destination and sends one summary per window, e.g. 1h. For noise, not for alerts.",
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "drop": {
+          "type": "boolean"
+        },
+        "engine": {
+          "description": "engine for expr, default: the top-level engine",
+          "type": "string"
+        },
+        "expr": {
+          "description": "optional expression, ANDed with match",
+          "type": "string"
+        },
+        "loud": {
+          "description": "target should notify (Matrix: m.text instead of m.notice)",
+          "type": "boolean"
+        },
+        "match": {
+          "$ref": "#/$defs/Match"
+        },
+        "mention": {
+          "description": "target-specific identities to mention",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "priority": {
+          "description": "low, normal, high, urgent. Default: high if loud, else normal",
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ],
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        },
+        "to": {
+          "description": "destination aliases",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "SelfPing": {
+      "additionalProperties": false,
+      "description": "SelfPing reports to an outside service (healthchecks.io, Uptime Kuma push) that stellwerk is alive, so its own death does not go unnoticed.",
+      "properties": {
+        "every": {
+          "description": "default 1m",
+          "examples": [
+            "30s",
+            "10m",
+            "24h"
+          ],
+          "pattern": "^(0|-?([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+)$",
+          "type": "string"
+        },
+        "fail_url": {
+          "description": "default url + \"/fail\"",
+          "type": "string"
+        },
+        "url": {
+          "description": "empty = off",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Signature": {
+      "additionalProperties": false,
+      "description": "Signature checks an HMAC-SHA256 of the body. A preset fills header and prefix: github, gitea, forgejo. Without a preset, header is required.",
+      "properties": {
+        "header": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "preset": {
+          "enum": [
+            "github",
+            "gitea",
+            "forgejo"
+          ],
+          "type": "string"
+        },
+        "secret": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Source is one named sender. Kind selects the decoder (alertmanager, generic, ...).",
+      "properties": {
+        "burst": {
+          "description": "default: the count of rate_limit",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "alertmanager",
+            "cloudevents",
+            "generic",
+            "gotify",
+            "ntfy"
+          ],
+          "type": "string"
+        },
+        "options": {
+          "description": "decoder-specific"
+        },
+        "rate_limit": {
+          "description": "e.g. \"60/m\", empty = unlimited",
+          "type": "string"
+        },
+        "signature": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Signature"
+            }
+          ],
+          "description": "HMAC-SHA256 of the body, instead of or in addition to token"
+        },
+        "token": {
+          "type": "string"
+        },
+        "token_header": {
+          "description": "e.g. X-Gitlab-Token, default: Authorization / ?token=",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "description": "Target is one configured output, e.g. a Matrix homeserver or a webhook receiver. Settings are shared by all accounts, each account's own settings are merged over them. Without accounts there is one account, \"default\".",
+      "properties": {
+        "accounts": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "settings": {},
+        "type": {
+          "enum": [
+            "email",
+            "matrix",
+            "ntfy",
+            "webhook"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Test": {
+      "additionalProperties": false,
+      "description": "Test is a rule test run by \"stellwerk -test\": a payload and what the rules must do with it.",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "expect": {
+          "$ref": "#/$defs/TestExpect"
+        },
+        "header": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "TestExpect": {
+      "additionalProperties": false,
+      "description": "TestExpect: every field that is set must hold.",
+      "properties": {
+        "contains": {
+          "description": "text in every rendered message",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "dropped_by": {
+          "description": "the drop rule",
+          "type": "string"
+        },
+        "heartbeat": {
+          "description": "it is this heartbeat",
+          "type": "string"
+        },
+        "loud": {
+          "type": "boolean"
+        },
+        "priority": {
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ],
+          "type": "string"
+        },
+        "routes": {
+          "description": "routes that send, in order",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "to": {
+          "description": "destinations, in order",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "unmatched": {
+          "description": "no rule matched",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "UI": {
+      "additionalProperties": false,
+      "properties": {
+        "listen": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/johnnycube/stellwerk/docs/stellwerk.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "audit": {
+      "$ref": "#/$defs/Audit"
+    },
+    "canary": {
+      "$ref": "#/$defs/Canary"
+    },
+    "delivery": {
+      "$ref": "#/$defs/Delivery"
+    },
+    "destinations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Destination"
+      },
+      "description": "alias -\u003e target + address",
+      "type": "object"
+    },
+    "engine": {
+      "description": "default expression engine for routes, \"cel\"",
+      "type": "string"
+    },
+    "ha": {
+      "$ref": "#/$defs/HA"
+    },
+    "heartbeats": {
+      "items": {
+        "$ref": "#/$defs/Heartbeat"
+      },
+      "type": "array"
+    },
+    "listen": {
+      "type": "string"
+    },
+    "log": {
+      "$ref": "#/$defs/Log"
+    },
+    "metrics": {
+      "$ref": "#/$defs/Metrics"
+    },
+    "node_id": {
+      "type": "string"
+    },
+    "routes": {
+      "items": {
+        "$ref": "#/$defs/Route"
+      },
+      "type": "array"
+    },
+    "self_ping": {
+      "$ref": "#/$defs/SelfPing"
+    },
+    "sources": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Source"
+      },
+      "description": "name -\u003e source, \"*\" = fallback for unknown names",
+      "type": "object"
+    },
+    "targets": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Target"
+      },
+      "description": "name -\u003e target instance",
+      "type": "object"
+    },
+    "templates": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "tests": {
+      "items": {
+        "$ref": "#/$defs/Test"
+      },
+      "type": "array"
+    },
+    "ui": {
+      "$ref": "#/$defs/UI"
+    }
+  },
+  "title": "stellwerk configuration",
+  "type": "object"
+}

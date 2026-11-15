@@ -1,0 +1,162 @@
+# stellwerk on Kubernetes. Run it in a cluster other than the one it watches,
+# or at least keep a heartbeat route to a destination outside it.
+#
+# Config comes in three layers, each overrides the one before:
+#   1. ConfigMap stellwerk-config  -> rules, sources, destinations (stellwerk.yaml)
+#   2. env       STELLWERK_*       -> per pod settings, e.g. node ID, log format
+#   3. Secret    stellwerk-secrets -> one key per secret value, key = config path
+#
+# A StatefulSet gives stable pod names (used as node IDs) and one volume per
+# pod for its Matrix device keys. replicas: 1 is a single node. For HA set
+# replicas: 2 or 3 and enable the ha block in the ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stellwerk-config
+data:
+  stellwerk.yaml: |
+    sources:
+      alertmanager: { kind: alertmanager }   # token comes from the Secret
+      "*": { kind: generic }
+    targets:
+      matrix:
+        type: matrix
+        settings:
+          homeserver: https://matrix.example.org
+          database: /data/{target}-{account}-{node}.db
+          allowed_inviters: ["@me:example.org"]
+        accounts:
+          alerts: { user_id: "@stellwerk:example.org" }
+      push:
+        type: ntfy                         # second channel, independent of the homeserver
+        settings: { url: https://ntfy.sh }
+    destinations:
+      critical: { target: matrix, account: alerts, address: "!aaaa:example.org", fallback: phone }
+      phone: { target: push, address: stellwerk-alerts-change-me }
+      misc: { target: matrix, account: alerts, address: "!ffff:example.org" }
+    routes:
+      - name: critical-alerts
+        match: { source: alertmanager, status: firing, labels: { severity: critical } }
+        to: critical
+        loud: true
+        mention: ["@me:example.org"]
+      - { name: catch-all, to: misc }
+    heartbeats:
+      - { name: watchdog, source: alertmanager, labels: { alertname: Watchdog }, timeout: 10m, to: critical }
+    ui:
+      listen: ":8081"
+    metrics:
+      listen: ":9090"
+    delivery:
+      spool: /data/spool.db                # on the pod's volume: deliveries survive restarts
+    audit:
+      file: /data/audit.jsonl
+    # ha:
+    #   enabled: true
+    #   peers:
+    #     - { id: stellwerk-0, url: "http://stellwerk-0.stellwerk-peers:8080" }
+    #     - { id: stellwerk-1, url: "http://stellwerk-1.stellwerk-peers:8080" }
+---
+# Fill in real values, or create it from your secret store (External Secrets,
+# Sealed Secrets, SOPS). Each key is a config path.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stellwerk-secrets
+type: Opaque
+stringData:
+  sources.alertmanager.token: change-me
+  sources._any.token: change-me-too   # "_any" stands for the "*" source
+  targets.matrix.accounts.alerts.password: change-me
+  targets.matrix.accounts.alerts.pickle_key: a-long-random-string-never-change-it
+  targets.matrix.accounts.alerts.recovery_key: ""   # after -bootstrap-cross-signing matrix/alerts
+  # ha.secret: shared-cluster-secret
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stellwerk
+spec:
+  serviceName: stellwerk-peers
+  replicas: 1
+  selector:
+    matchLabels: { app: stellwerk }
+  template:
+    metadata:
+      labels: { app: stellwerk }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      enableServiceLinks: false          # no STELLWERK_SERVICE_HOST & co.
+      terminationGracePeriodSeconds: 40  # above delivery.drain_timeout (25s)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: stellwerk
+          image: ghcr.io/johnnycube/stellwerk:0.1.0
+          env:
+            - name: STELLWERK_CONFIG_DIR
+              value: /etc/stellwerk/config,/etc/stellwerk/secrets
+            - name: STELLWERK_NODE_ID
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - name: STELLWERK_LOG__FORMAT
+              value: json
+            - name: STELLWERK_WATCH           # reload when the ConfigMap or Secret changes
+              value: 30s
+          ports:
+            - { name: ingest, containerPort: 8080 }
+            - { name: ui, containerPort: 8081 }
+            - { name: metrics, containerPort: 9090 }
+          readinessProbe:
+            httpGet: { path: /readyz, port: ingest }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: ingest }
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 20m, memory: 48Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: config, mountPath: /etc/stellwerk/config, readOnly: true }
+            - { name: secrets, mountPath: /etc/stellwerk/secrets, readOnly: true }
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: config
+          configMap: { name: stellwerk-config }
+        - name: secrets
+          secret: { secretName: stellwerk-secrets }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 256Mi } }
+---
+# What senders talk to. Put your Ingress or Gateway in front of it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: stellwerk
+spec:
+  selector: { app: stellwerk }
+  ports:
+    - { name: ingest, port: 8080, targetPort: ingest }
+---
+# Stable DNS per pod, used for HA peers. Harmless with one replica.
+apiVersion: v1
+kind: Service
+metadata:
+  name: stellwerk-peers
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector: { app: stellwerk }
+  ports:
+    - { name: ingest, port: 8080, targetPort: ingest }

@@ -1,0 +1,272 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/johnnycube/stellwerk/main/docs/stellwerk.schema.json
+# stellwerk example config.
+#
+# Every key can also come from elsewhere. Three layers, each overrides the one before:
+#   1. config files: this file (-config or STELLWERK_CONFIG, ${VAR} is expanded),
+#      then *.yaml fragments in the config dirs (-config-dir or STELLWERK_CONFIG_DIR)
+#   2. env: STELLWERK_TARGETS__MATRIX__ACCOUNTS__ALERTS__PASSWORD=...
+#      ("__" between levels, "_any" stands for "*", a _FILE suffix reads a file and beats the plain variable)
+#   3. secret files: any other file in the config dirs holds one value, e.g. a Kubernetes
+#      Secret key "targets.matrix.accounts.alerts.password"
+# Check the result with: stellwerk -print-config (secrets are redacted).
+
+listen: ":8080"
+# engine: cel                # default expression engine for route "expr:". cel is built in.
+# node_id: a                 # unique per node, defaults to the hostname, or STELLWERK_NODE_ID
+
+# Who may send. Every source has a kind (the decoder) and proves who it is
+# with a token, a signature, or both.
+# Token: "Authorization: Bearer <token>", Basic auth (token as password),
+# ?token=<token>, or only the header named in token_header.
+# Signature: HMAC-SHA256 of the body, the secret never travels (GitHub, Gitea, Forgejo).
+# Kinds: alertmanager, generic, cloudevents.
+# "*" catches all names that are not listed.
+sources:
+  alertmanager:
+    kind: alertmanager
+    token: ${TOKEN_ALERTMANAGER}
+    # options: { split_alerts: true }   # one event per alert instead of per group
+  sonarr:
+    kind: generic
+    token: ${TOKEN_SONARR}
+    rate_limit: 60/m      # optional, over it the sender gets 429 with Retry-After
+    options: { status_field: eventType }
+  forgejo:
+    kind: generic
+    signature: { preset: forgejo, secret: "${FORGEJO_WEBHOOK_SECRET}" }   # or github, gitea, or header + prefix
+    options: { labels: { repo: repository.full_name } }
+  # gitlab: { kind: generic, token: "${GITLAB_TOKEN}", token_header: X-Gitlab-Token }
+  uptime:
+    kind: ntfy            # apps that speak ntfy: server URL https://stellwerk.example.org/ntfy, topic "uptime"
+    token: "${TOKEN_UPTIME}"
+  proxmox:
+    kind: gotify          # apps that speak Gotify: server URL https://stellwerk.example.org/gotify, this token
+    token: "${TOKEN_PROXMOX}"
+  backup:
+    kind: cloudevents     # structured, batch or binary mode. type, source, subject become labels
+    token: ${TOKEN_BACKUP}
+  "*":
+    kind: generic
+    token: ${TOKEN_DEFAULT}
+
+# Where messages can go. A target is one system (a homeserver, a webhook
+# receiver). Settings are shared, each account adds or overrides its own.
+# Every account is its own sender with its own login and queue.
+targets:
+  matrix:
+    type: matrix
+    settings:
+      homeserver: https://matrix.example.org
+      database: /data/{target}-{account}-{node}.db   # one device per account and node
+      allowed_inviters: ["@me:example.org"]
+    accounts:
+      alerts:                                        # the bot that pages you
+        user_id: "@stellwerk:example.org"
+        password: ${MATRIX_ALERTS_PASSWORD}          # first login and cross-signing bootstrap
+        pickle_key: ${MATRIX_ALERTS_PICKLE_KEY}      # long random string, never change it
+        recovery_key: ${MATRIX_ALERTS_RECOVERY_KEY}  # from -bootstrap-cross-signing matrix/alerts
+        commands: true                               # answers "!stellwerk ..." in its rooms (mute, status, canary)
+      media:                                         # a second, chattier bot
+        user_id: "@mediabot:example.org"
+        password: ${MATRIX_MEDIA_PASSWORD}
+        pickle_key: ${MATRIX_MEDIA_PICKLE_KEY}
+        recovery_key: ${MATRIX_MEDIA_RECOVERY_KEY}
+  # A second channel that does not depend on the homeserver, for fallbacks.
+  mail:                          # no accounts: one implicit account "default"
+    type: email
+    settings:
+      host: smtp.example.org
+      # port: 587                # tls: starttls (default), implicit (465) or none (trusted local relay only)
+      username: alerts@example.org
+      password: ${SMTP_PASSWORD}
+      from: "stellwerk <alerts@example.org>"
+  push:
+    type: ntfy
+    settings:
+      url: https://ntfy.sh       # or your own ntfy server
+      # token: ${NTFY_TOKEN}
+  # hook:
+  #   type: webhook
+  #   settings:
+  #     url: https://n8n.example.org/webhook/stellwerk
+  #     headers: { Authorization: "Bearer ${HOOK_TOKEN}" }
+
+# Named places: target, account (optional if the target has only one) and address.
+# fallback: where the message goes when delivery here finally fails (all
+# retries used), e.g. mail and push when the homeserver is down.
+destinations:
+  critical: { target: matrix, account: alerts, address: "!aaaa:example.org", fallback: [phone, inbox] }
+  warning:  { target: matrix, account: alerts, address: "!bbbb:example.org" }
+  k8s:      { target: matrix, account: alerts, address: "!cccc:example.org" }
+  media:    { target: matrix, account: media,  address: "!dddd:example.org" }
+  news:     { target: matrix, account: media,  address: "!eeee:example.org" }
+  misc:     { target: matrix, account: alerts, address: "!ffff:example.org" }
+  phone:    { target: push, address: stellwerk-alerts-change-me }   # ntfy topic, pick something unguessable on ntfy.sh
+  inbox:    { target: mail, address: "me@example.org" }
+
+templates:
+  sonarr: |-
+    📺 **{{ get .Data "eventType" }}**: {{ get .Data "series.title" }}{{ range get .Data "episodes" }}
+    - S{{ get . "seasonNumber" }}E{{ get . "episodeNumber" }} {{ get . "title" }}{{ end }}
+  radarr: |-
+    🎬 **{{ get .Data "eventType" }}**: {{ get .Data "movie.title" }}{{ with get .Data "movie.year" }} ({{ . }}){{ end }}
+  k8s-event: |-
+    ☸️ `{{ get .Data "involvedObject.namespace" }}/{{ get .Data "involvedObject.name" }}` **{{ get .Data "reason" }}** ({{ get .Data "type" }})
+    {{ get .Data "message" }}
+
+# Checked top to bottom. First match wins unless continue: true.
+# match: anchored regexes, "!" negates, source is a glob.
+# expr: optional expression (CEL by default: source, status, labels, data), ANDed with match.
+#   engine: picks another expression engine per route, see the top-level engine key.
+# loud: notify (Matrix: m.text). Quiet messages are m.notice, no push.
+# priority: low, normal, high, urgent. Default: high if loud, else normal.
+#   Mail and ntfy use it, a fallback keeps it.
+routes:
+  - name: critical-alerts
+    match:
+      source: alertmanager
+      status: firing
+      labels: { severity: "critical|page" }
+    to: critical            # add more: [critical, hook]
+    loud: true
+    priority: urgent
+    mention: ["@me:example.org"]
+
+  - name: critical-resolved
+    match:
+      source: alertmanager
+      labels: { severity: "critical|page" }
+    to: critical
+
+  - name: other-alerts
+    match: { source: alertmanager }
+    to: warning
+
+  - name: k8s-oom-or-flapping
+    match: { source: k8s-events }
+    expr: 'data.?reason.orValue("") in ["OOMKilling", "OOMKilled"] || data.?count.orValue(0) >= 10'
+    to: critical
+    loud: true
+    template: k8s-event
+
+  - name: k8s-warnings
+    match:
+      source: k8s-events
+      fields: { type: Warning }
+    to: k8s
+    template: k8s-event
+
+  - name: k8s-normal-noise
+    match: { source: k8s-events }
+    drop: true
+
+  - name: arr-tests-dropped
+    match: { source: "*arr" }
+    expr: 'data.?eventType.orValue("") == "Test"'
+    drop: true
+
+  - name: radarr
+    match: { source: radarr }
+    to: media
+    template: radarr
+
+  - name: media
+    match: { source: "*arr" }
+    to: media
+    template: sonarr
+    digest: 1h            # one summary per hour instead of a message per download
+
+  - name: news
+    match: { source: news }
+    to: news
+
+  - name: backups-failed
+    match: { source: backup, labels: { type: "org\\.example\\.backup\\.failed" } }
+    to: critical
+    loud: true
+
+  - name: git
+    match: { source: forgejo }
+    to: misc
+
+  - name: catch-all
+    match: { source: "*" }
+    to: misc
+
+# Events that must keep arriving. They are consumed, not routed.
+# In a cluster only the leader raises the alert.
+heartbeats:
+  - name: alertmanager-watchdog
+    source: alertmanager
+    labels: { alertname: Watchdog }
+    timeout: 10m
+    to: critical
+    mention: ["@me:example.org"]
+  # A cron job or script checks in via /ping/nightly-backup?token=... (or
+  # /ping/nightly-backup/fail), like healthchecks.io.
+  - name: nightly-backup
+    token: "${TOKEN_BACKUP_PING}"
+    timeout: 25h
+    to: critical
+
+delivery:
+  mode: sync            # sync: answer after delivery, failures make the sender retry. async: answer once queued.
+  timeout: 20s
+  queue_size: 500
+  max_retries: 5
+  max_backoff: 1m
+  dedupe_window: 2m     # same payload from the same source within 2m is delivered once (shared in a cluster)
+  spool: /data/spool-{node}.db   # accepted deliveries survive restarts and crashes. Empty = memory only.
+  # late_after: 10m      # a message sent later than this gets a note with its age
+  # max_age: 24h         # older messages are not sent at all (default: no limit)
+  # breaker_failures: 3  # after 3 failures in a row an account is skipped for breaker_cooldown (1m), fallbacks get the messages
+
+# A test message through the whole chain every day. If it cannot be
+# delivered, the destination's fallbacks get it, that is the alarm.
+canary:
+  to: critical
+  at: "09:00"
+  # verify_with: matrix/media   # a second account in the same room must decrypt it
+
+# An outside service that notices when stellwerk itself is down.
+# self_ping:
+#   url: https://hc-ping.com/<uuid>     # or an Uptime Kuma push URL
+
+# Run with: stellwerk -test (exit 1 if one fails, good for CI)
+tests:
+  - name: critical alerts page me
+    source: alertmanager
+    body: '{"version":"4","status":"firing","commonLabels":{"alertname":"Disk","severity":"critical"},"alerts":[]}'
+    expect: { routes: [critical-alerts], to: [critical], loud: true }
+  - name: sonarr test events are dropped
+    source: sonarr
+    body: '{"eventType":"Test"}'
+    expect: { dropped_by: arr-tests-dropped }
+  - name: the watchdog is a heartbeat
+    source: alertmanager
+    body: '{"version":"4","status":"firing","commonLabels":{"alertname":"Watchdog"},"alerts":[]}'
+    expect: { heartbeat: alertmanager-watchdog }
+
+# High availability is optional and off by default. Turn it on to run the
+# same config on several nodes behind a load balancer, only node_id differs.
+ha:
+  enabled: false
+  # secret: set via STELLWERK_HA__SECRET or a Secret key "ha.secret"
+  # peers:
+  #   - { id: a, url: "https://a.internal:8080" }
+  #   - { id: b, url: "https://b.internal:8080" }
+
+# Every received message, the rules' verdict and every send attempt. Shown in the UI.
+audit:
+  size: 1000
+  payload: true
+  # file: /data/audit.jsonl   # one JSON line per finished entry, rotated at file_max_mb (50)
+  # log: true                 # one log line per finished entry
+
+# Prometheus metrics at /metrics on their own port. Empty = off.
+metrics:
+  listen: ""
+
+ui:
+  listen: "127.0.0.1:8081"            # "" disables the UI, in Docker use ":8081"
+  # password: optional Basic auth, e.g. via STELLWERK_UI__PASSWORD

@@ -1,0 +1,18 @@
+# Single node on a VPS outside the cluster you monitor.
+# Put a TLS reverse proxy (Caddy, Traefik) in front of port 8080.
+services:
+  stellwerk:
+    build: ..
+    restart: unless-stopped
+    env_file: .env      # secrets as STELLWERK_* variables, e.g. STELLWERK_SOURCES__ALERTMANAGER__TOKEN=...
+    environment:
+      STELLWERK_CONFIG: /config/stellwerk.yaml
+      STELLWERK_NODE_ID: a
+    volumes:
+      - ./stellwerk.yaml:/config/stellwerk.yaml:ro
+      - stellwerk-data:/data     # Matrix device + keys, back this up
+    ports:
+      - "127.0.0.1:8080:8080"    # ingest, behind your TLS proxy
+      - "127.0.0.1:8081:8081"    # UI, set ui.listen: ":8081" (or STELLWERK_UI__LISTEN=:8081), reach it via SSH tunnel
+volumes:
+  stellwerk-data:

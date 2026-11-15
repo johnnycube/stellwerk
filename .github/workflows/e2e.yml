@@ -1,0 +1,31 @@
+name: e2e
+on: [push, pull_request]
+jobs:
+  synapse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod }
+      - name: Start Synapse
+        run: |
+          mkdir synapse
+          docker run --rm -v "$PWD/synapse:/data" -e UID="$(id -u)" -e GID="$(id -g)" \
+            -e SYNAPSE_SERVER_NAME=localhost -e SYNAPSE_REPORT_STATS=no matrixdotorg/synapse:latest generate
+          cat >> synapse/homeserver.yaml <<'YAML'
+          rc_message: { per_second: 1000, burst_count: 1000 }
+          rc_login:
+            address: { per_second: 1000, burst_count: 1000 }
+            account: { per_second: 1000, burst_count: 1000 }
+            failures: { per_second: 1000, burst_count: 1000 }
+          rc_joins:
+            local: { per_second: 1000, burst_count: 1000 }
+          YAML
+          docker run -d --name synapse -p 8008:8008 -v "$PWD/synapse:/data" -e UID="$(id -u)" -e GID="$(id -g)" matrixdotorg/synapse:latest
+          for i in $(seq 1 60); do curl -sf http://localhost:8008/_matrix/client/versions && break; sleep 2; done
+          echo "STELLWERK_E2E_SHARED_SECRET=$(grep '^registration_shared_secret:' synapse/homeserver.yaml | cut -d'"' -f2)" >> "$GITHUB_ENV"
+      - name: End-to-end test
+        env: { STELLWERK_E2E_HOMESERVER: "http://localhost:8008" }
+        run: go test -tags "goolm e2e" -v -count=1 ./test/e2e
+      - if: failure()
+        run: docker logs synapse | tail -100

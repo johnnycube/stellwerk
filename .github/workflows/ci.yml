@@ -1,0 +1,80 @@
+name: ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod }
+      - run: go mod tidy && git diff --exit-code go.mod go.sum
+      - run: go vet -tags goolm ./...
+      - run: go test -tags goolm -race ./...
+      - run: go test -tags "goolm noha" ./...
+      - name: Config schema is current
+        run: go run -tags goolm ./cmd/stellwerk -schema | diff - docs/stellwerk.schema.json
+      - name: Example config is valid and its rule tests pass
+        env:
+          TOKEN_ALERTMANAGER: a
+          TOKEN_SONARR: b
+          TOKEN_DEFAULT: c
+          FORGEJO_WEBHOOK_SECRET: d
+          TOKEN_BACKUP: e
+          TOKEN_UPTIME: f
+          TOKEN_PROXMOX: g
+          TOKEN_BACKUP_PING: h
+        run: |
+          go build -tags goolm -o /tmp/stellwerk ./cmd/stellwerk
+          /tmp/stellwerk -config stellwerk.example.yaml -check
+          /tmp/stellwerk -config stellwerk.example.yaml -test
+
+  process:
+    name: kill and restart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod }
+      - run: go test -tags "goolm process" -v ./test/process
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod }
+      - name: Fuzz decoders and parsers, 30 s each
+        run: |
+          for f in FuzzAlertmanager FuzzGeneric FuzzCloudEvents FuzzNtfy FuzzGotify; do
+            go test -tags goolm -run '^$' -fuzz "^$f\$" -fuzztime 30s ./internal/adapters/in/source/
+          done
+          for f in FuzzParseMatchers FuzzParseDuration FuzzLookup; do
+            go test -tags goolm -run '^$' -fuzz "^$f\$" -fuzztime 30s ./internal/core/domain/
+          done
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with: { name: fuzz-crashers, path: "**/testdata/fuzz/**" }
+
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod }
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck -tags goolm ./...
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - run: helm lint deploy/helm/stellwerk
+      - name: Render and validate against the Kubernetes schemas
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          helm template t deploy/helm/stellwerk | ./kubeconform -strict -summary
+          helm template t deploy/helm/stellwerk --set ha.replicas=3 --set ha.secret=ci --set serviceMonitor.enabled=true | ./kubeconform -strict -summary -ignore-missing-schemas
+          ./kubeconform -strict -summary deploy/kubernetes/stellwerk.yaml
