@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.1] - 2026-11-17
+
+### Added
+
+- Template text helpers `firstLine`, `lines`, `trim`, `trunc`, `replace` and `regexFind`, for messages whose useful part sits inside a longer text, such as the release name on the first line of a cleanuparr notification.
+
+### Changed
+
+- Digests list identical messages once, with `×N` at the end of their first line, instead of repeating them.
+
 ## [0.1.0] - 2026-11-15
 
 First release.

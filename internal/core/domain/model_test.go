@@ -112,6 +112,48 @@ func TestRendererTemplatesAndHelpers(t *testing.T) {
 	}
 }
 
+func TestRendererTextHelpers(t *testing.T) {
+	r, err := NewRenderer(map[string]string{
+		"first":   `{{ get .Data "message" | firstLine }}`,
+		"lines":   `{{ range lines (get .Data "message") }}[{{ trim . }}]{{ end }}`,
+		"trunc":   `{{ get .Data "title" | trunc 10 }}|{{ get .Data "short" | trunc 10 }}|{{ get .Data "umlaut" | trunc 4 }}`,
+		"replace": `{{ get .Data "title" | replace "Deleting item from queue with reason: " "" }}`,
+		"regex":   `{{ get .Data "title" | regexFind "reason: (\\w+)" }}|{{ get .Data "title" | regexFind "queue" }}|{{ get .Data "title" | regexFind "nomatch" }}|{{ get .Data "missing" | firstLine }}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev := &Event{Data: map[string]any{
+		"message": "Some.Release.1080p  \r\n\nReason: Stalled\nHash: abc",
+		"title":   "Deleting item from queue with reason: Stalled",
+		"short":   "short",
+		"umlaut":  "Grüße aus Köln",
+	}}
+	for name, want := range map[string]string{
+		"first":   "Some.Release.1080p",
+		"lines":   "[Some.Release.1080p][][Reason: Stalled][Hash: abc]",
+		"trunc":   "Deleting…|short|Grü…",
+		"replace": "Stalled",
+		"regex":   "Stalled|queue||",
+	} {
+		if out, err := r.Render(name, ev); err != nil || out != want {
+			t.Errorf("%s: %q, %v; want %q", name, out, err, want)
+		}
+	}
+	for _, src := range []string{
+		`{{ get .Data "title" | regexFind "(" }}`,
+		`{{ if .Source }}{{ with get .Data "x" }}{{ regexFind "[" . }}{{ end }}{{ end }}`,
+		`{{ range lines .Source }}{{ else }}{{ (regexFind "*" .Source) | trim }}{{ end }}`,
+	} {
+		if _, err := NewRenderer(map[string]string{"bad": src}); err == nil || !strings.Contains(err.Error(), "regexFind") {
+			t.Errorf("an invalid literal pattern fails at load: %s: %v", src, err)
+		}
+	}
+	if _, err := r.Render("regex", &Event{Data: "not a map"}); err != nil {
+		t.Errorf("a value that is no string is rendered, not failed: %v", err)
+	}
+}
+
 func TestRenderPicksTemplateByKind(t *testing.T) {
 	r, _ := NewRenderer(map[string]string{"grafana": "grafana {{ .Status }}"})
 	if out, _ := r.Render("", &Event{Kind: "grafana", Status: "alerting"}); out != "grafana alerting" {
