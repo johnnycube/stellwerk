@@ -21,6 +21,7 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=2048] # fleetlint repo/no-large-files: 2 MiB
       - id: check-yaml
+        args: [--allow-multiple-documents] # deploy/kubernetes/stellwerk.yaml is one file of several objects
       - id: check-toml
       - id: check-json
       - id: check-symlinks
