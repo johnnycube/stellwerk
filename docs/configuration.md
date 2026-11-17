@@ -127,3 +127,16 @@ Engines must be pure: no I/O and the same answer for the same event. That is why
 ## Templates
 
 Event fields: `.Source`, `.Kind`, `.Status`, `.Labels`, `.Data`. Helpers: `get .Data "a.b.0.c"`, `json`, `upper`, `lower`, `join`, `default`, `since`. Without `template:` the built-in template named like the source kind is used, otherwise `generic`.
+
+Text helpers take the value last, so they chain in pipelines, and a missing value is an empty string:
+
+| Helper | Does | Example |
+|---|---|---|
+| `firstLine` | the first line, trimmed | `{{ get .Data "message" \| firstLine }}` |
+| `lines` | the lines as a list, for `range` | `{{ range lines (get .Data "message") }}…{{ end }}` |
+| `trim` | leading and trailing whitespace removed | `{{ get .Data "title" \| trim }}` |
+| `trunc N` | at most N characters, a cut ends in `…` | `{{ get .Data "message" \| trunc 80 }}` |
+| `replace OLD NEW` | every OLD replaced by NEW | `{{ get .Data "title" \| replace "Deleting item from queue with reason: " "" }}` |
+| `regexFind RE` | the first match, or its first capture group; no match is empty | `{{ get .Data "title" \| regexFind "reason: (\\w+)" }}` |
+
+A `regexFind` pattern written in the template is compiled when the config loads, so a bad one fails the start, a reload and `stellwerk -check`.

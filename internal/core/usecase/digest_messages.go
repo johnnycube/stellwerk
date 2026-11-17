@@ -146,7 +146,9 @@ func (u *DigestMessages) finish(items []domain.Delivery, err error) {
 }
 
 // Digest folds deliveries of one route and destination into one. The
-// newest come last, the summary is cut at digestMaxChars.
+// newest come last, the summary is cut at digestMaxChars. Identical
+// messages are listed once, in the place of the first, with "×N" at the
+// end of their first line.
 func Digest(items []domain.Delivery, span time.Duration) domain.Delivery {
 	first := items[0]
 	out := first
@@ -154,17 +156,35 @@ func Digest(items []domain.Delivery, span time.Duration) domain.Delivery {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "📬 **Digest**: %d %s from `%s` in the last %s", len(items), plural(len(items), "message", "messages"), first.Route, roundAge(span))
 	rank := 0
-	for i, it := range items {
+	var order []string
+	count := map[string]int{}
+	for _, it := range items {
 		out.Message.Loud = out.Message.Loud || it.Message.Loud
 		if r := domain.PriorityRank(it.Message.Priority); r > rank {
 			rank = r
 		}
-		part := "\n\n---\n\n" + it.Message.Markdown
+		if count[it.Message.Markdown] == 0 {
+			order = append(order, it.Message.Markdown)
+		}
+		count[it.Message.Markdown]++
+	}
+	left := len(items)
+	for _, md := range order {
+		n := count[md]
+		if n > 1 {
+			head, rest, more := strings.Cut(md, "\n")
+			md = fmt.Sprintf("%s ×%d", head, n)
+			if more {
+				md += "\n" + rest
+			}
+		}
+		part := "\n\n---\n\n" + md
 		if sb.Len()+len(part) > digestMaxChars {
-			fmt.Fprintf(&sb, "\n\n---\n\n…and %d more, see the audit log.", len(items)-i)
+			fmt.Fprintf(&sb, "\n\n---\n\n…and %d more, see the audit log.", left)
 			break
 		}
 		sb.WriteString(part)
+		left -= n
 	}
 	out.Message.Markdown = sb.String()
 	out.Message.Priority = domain.Priorities[rank]

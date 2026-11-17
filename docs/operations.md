@@ -22,7 +22,7 @@ With `commands: true` on a Matrix account, people in `command_users` (default: `
 
 ## Digests
 
-`digest: 1h` on a route collects its messages per destination and sends one summary when the hour is over: a night of downloads becomes a few messages. The audit log shows the collected events as *waiting for the digest*. Open digests are held in memory: a clean shutdown sends them early, a crash loses them, so use digests for noise, not for alerts.
+`digest: 1h` on a route collects its messages per destination and sends one summary when the hour is over: a night of downloads becomes a few messages. Identical messages are listed once, with `×N` at the end of their first line, so a source that repeats itself shows as one line with a count. The audit log shows the collected events as *waiting for the digest*. Open digests are held in memory: a clean shutdown sends them early, a crash loses them, so use digests for noise, not for alerts.
 
 ## Ping URLs for cron jobs
 

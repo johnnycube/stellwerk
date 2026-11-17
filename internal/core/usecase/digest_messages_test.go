@@ -107,10 +107,10 @@ func (refusing) Enqueue(domain.Delivery) (<-chan error, error) { return nil, err
 func TestDigestBuilder(t *testing.T) {
 	big := strings.Repeat("x", 4000)
 	items := []domain.Delivery{
-		{Route: "r", Destination: "d", Message: domain.Message{Markdown: big, Priority: domain.PriorityLow}},
-		{Route: "r", Destination: "d", Message: domain.Message{Markdown: big, Priority: domain.PriorityHigh, Loud: true}},
-		{Route: "r", Destination: "d", Message: domain.Message{Markdown: big}},
-		{Route: "r", Destination: "d", Message: domain.Message{Markdown: big}},
+		{Route: "r", Destination: "d", Message: domain.Message{Markdown: "1" + big, Priority: domain.PriorityLow}},
+		{Route: "r", Destination: "d", Message: domain.Message{Markdown: "2" + big, Priority: domain.PriorityHigh, Loud: true}},
+		{Route: "r", Destination: "d", Message: domain.Message{Markdown: "3" + big}},
+		{Route: "r", Destination: "d", Message: domain.Message{Markdown: "4" + big}},
 	}
 	d := Digest(items, 30*time.Minute)
 	if len(d.Message.Markdown) > digestMaxChars+100 || !strings.Contains(d.Message.Markdown, "…and 2 more") {
@@ -118,5 +118,27 @@ func TestDigestBuilder(t *testing.T) {
 	}
 	if d.Message.Priority != domain.PriorityHigh || !d.Message.Loud || d.Digest != 0 {
 		t.Errorf("%+v", d.Message)
+	}
+}
+
+func TestDigestBuilder_CollapsesIdenticalMessages(t *testing.T) {
+	msg := func(md string) domain.Delivery {
+		return domain.Delivery{Route: "r", Destination: "d", Message: domain.Message{Markdown: md}}
+	}
+	items := []domain.Delivery{
+		msg("🧹 **Stalled**\nSome.Release"),
+		msg("lidarr · DownloadFailure"),
+		msg("🧹 **Stalled**\nSome.Release"),
+		msg("radarr · Download"),
+		msg("lidarr · DownloadFailure"),
+		msg("🧹 **Stalled**\nSome.Release"),
+	}
+	m := Digest(items, time.Hour).Message.Markdown
+	want := "📬 **Digest**: 6 messages from `r` in the last 1h0m0s" +
+		"\n\n---\n\n🧹 **Stalled** ×3\nSome.Release" +
+		"\n\n---\n\nlidarr · DownloadFailure ×2" +
+		"\n\n---\n\nradarr · Download"
+	if m != want {
+		t.Errorf("got\n%s\nwant\n%s", m, want)
 	}
 }
