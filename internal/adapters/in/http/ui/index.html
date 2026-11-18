@@ -19,6 +19,7 @@
   --trace-ink: #8A5D00;
   --sign: "DIN Alternate", "DIN 2014", "D-DIN", Bahnschrift, "Roboto Condensed", "Arial Narrow", sans-serif;
   --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --page: 1500px; /* content width on big screens, keeps the yard near its drawn size */
   --code: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
@@ -29,6 +30,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 a { color: inherit; text-decoration-color: var(--steel); text-underline-offset: 2px; }
 a:hover { text-decoration-color: var(--ink); }
 
+header.bar, nav.tabs, main > .view { max-width: calc(var(--page) + 4rem); margin-inline: auto; }
 header.bar {
   display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap;
   padding: 1.25rem 2rem .5rem;
@@ -41,13 +43,13 @@ header.bar .counts b { font-family: var(--sign); font-size: 1.25rem; color: var(
 .live i { width: .55rem; height: .55rem; border-radius: 50%; background: var(--go); display: inline-block; }
 .live.stale i { background: var(--stop); }
 
-nav.tabs { display: flex; gap: .25rem; padding: 0 2rem; border-bottom: 2px solid var(--steel); margin: 0 0 1.25rem; overflow-x: auto; }
+nav.tabs { display: flex; gap: .25rem; padding: 0 2rem; border-bottom: 2px solid var(--steel); margin-bottom: 1.25rem; overflow-x: auto; }
 nav.tabs a { font-family: var(--sign); font-weight: 700; font-size: 1.05rem; padding: .45rem 1rem .4rem; color: var(--ink-soft); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
 nav.tabs a:hover { color: var(--ink); }
 nav.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--trace); }
 nav.tabs .badge { display: inline-block; min-width: 1.3rem; padding: 0 .35rem; margin-left: .35rem; border-radius: 99px; background: #F8E7BF; color: var(--trace-ink); font-size: .8rem; text-align: center; }
 nav.tabs .badge:empty { display: none; }
-.banner { margin: 0 2rem 1rem; padding: .6rem .9rem; border-radius: 4px; background: #F4D7D3; color: #8E2A20; display: flex; gap: 1rem; align-items: baseline; }
+.banner { width: calc(100% - 4rem); max-width: var(--page); margin: 0 auto 1rem; padding: .6rem .9rem; border-radius: 4px; background: #F4D7D3; color: #8E2A20; display: flex; gap: 1rem; align-items: baseline; }
 .banner[hidden] { display: none; }
 .banner p { margin: 0; flex: 1; white-space: pre-wrap; }
 
@@ -60,7 +62,7 @@ main > .view.single { grid-template-columns: minmax(0, 1fr); }
   header.bar .counts { margin-left: 0; }
   nav.tabs { padding: 0 1rem; }
   main > .view { padding: 0 1rem 2rem; }
-  .banner { margin: 0 1rem 1rem; }
+  .banner { width: calc(100% - 2rem); }
 }
 .intro { margin: 0 0 .6rem; }
 .crumbs { margin: 0 0 .6rem; color: var(--ink-soft); }
