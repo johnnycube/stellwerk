@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.3] - 2026-11-18
+
+### Fixed
+
+- On big screens the UI keeps a fixed content width instead of stretching the yard to the full window, so the whole graph fits on screen with its side panel next to it.
+
 ## [0.1.2] - 2026-11-18
 
 ### Added
