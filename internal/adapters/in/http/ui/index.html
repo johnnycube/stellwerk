@@ -26,80 +26,112 @@ html, body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/
 h1, h2, h3, .sign { font-family: var(--sign); font-weight: 700; letter-spacing: .01em; }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--trace); outline-offset: 2px; }
+a { color: inherit; text-decoration-color: var(--steel); text-underline-offset: 2px; }
+a:hover { text-decoration-color: var(--ink); }
 
 header.bar {
   display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap;
-  padding: 1.25rem 2rem .75rem;
+  padding: 1.25rem 2rem .5rem;
 }
 header.bar h1 { margin: 0; font-size: 2rem; line-height: 1; }
-header.bar p { margin: 0; color: var(--ink-soft); }
-header.bar .counts { margin-left: auto; display: flex; gap: 1.25rem; color: var(--ink-soft); }
+header.bar h1 a { text-decoration: none; }
+header.bar .counts { margin-left: auto; display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; color: var(--ink-soft); align-items: baseline; }
 header.bar .counts b { font-family: var(--sign); font-size: 1.25rem; color: var(--ink); margin-right: .25rem; }
 .live { display: inline-flex; align-items: center; gap: .4rem; }
 .live i { width: .55rem; height: .55rem; border-radius: 50%; background: var(--go); display: inline-block; }
 .live.stale i { background: var(--stop); }
 
+nav.tabs { display: flex; gap: .25rem; padding: 0 2rem; border-bottom: 2px solid var(--steel); margin: 0 0 1.25rem; overflow-x: auto; }
+nav.tabs a { font-family: var(--sign); font-weight: 700; font-size: 1.05rem; padding: .45rem 1rem .4rem; color: var(--ink-soft); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+nav.tabs a:hover { color: var(--ink); }
+nav.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--trace); }
+nav.tabs .badge { display: inline-block; min-width: 1.3rem; padding: 0 .35rem; margin-left: .35rem; border-radius: 99px; background: #F8E7BF; color: var(--trace-ink); font-size: .8rem; text-align: center; }
+nav.tabs .badge:empty { display: none; }
+.banner { margin: 0 2rem 1rem; padding: .6rem .9rem; border-radius: 4px; background: #F4D7D3; color: #8E2A20; display: flex; gap: 1rem; align-items: baseline; }
+.banner[hidden] { display: none; }
+.banner p { margin: 0; flex: 1; white-space: pre-wrap; }
+
+main > .view { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; gap: 1.5rem; padding: 0 2rem 3rem; align-items: start; }
+main > .view[hidden] { display: none; }
+main > .view.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1100px) { main > .view { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) {
   header.bar { padding: 1rem 1rem .5rem; }
   header.bar .counts { margin-left: 0; }
-  main { padding: 0 1rem 2rem !important; }
+  nav.tabs { padding: 0 1rem; }
+  main > .view { padding: 0 1rem 2rem; }
+  .banner { margin: 0 1rem 1rem; }
 }
-main { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; gap: 0 1.5rem; padding: 0 2rem 3rem; }
-@media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+.intro { margin: 0 0 .6rem; }
+.crumbs { margin: 0 0 .6rem; color: var(--ink-soft); }
+.crumbs b { color: var(--ink); font-family: var(--sign); }
 
-#yard-wrap { overflow-x: auto; background: var(--paper-2); border-radius: 6px; padding: .5rem 0; }
-#yard { display: block; min-width: 820px; width: 100%; height: auto; }
-#yard text { font-family: var(--sign); fill: var(--ink); }
-#yard .small { font-family: var(--body); font-size: 11px; fill: var(--ink-soft); }
-#yard .num { font-size: 13px; fill: var(--steel-dark); }
-#yard .track { fill: none; stroke: var(--steel); stroke-width: 3; stroke-linecap: round; }
-#yard .trunk { stroke: var(--ink); stroke-width: 5; }
-#yard .branch-drop { stroke-dasharray: 2 6; }
-#yard .node { cursor: pointer; }
-#yard .node:focus { outline: none; }
-#yard .node:focus-visible .hit { stroke: var(--trace); stroke-width: 3; }
-#yard .hit { fill: transparent; stroke: none; rx: 4; }
-#yard .node:hover .hit { fill: rgba(22, 34, 46, .05); }
-#yard .selected .hit { fill: rgba(227, 162, 26, .14); }
-#yard .switch { fill: var(--paper-2); stroke: var(--ink); stroke-width: 3; }
-#yard .switch.loud { fill: var(--ink); }
-#yard .platform { fill: var(--go); }
-#yard .type { font-family: var(--body); font-size: 10.5px; fill: var(--steel-dark); }
-#yard .buffer { fill: var(--stop); }
-#yard .buffer-idle { fill: var(--steel-dark); }
-#yard .src-dot { fill: var(--ink); }
-#yard .dim { opacity: .22; }
-#yard .lit { stroke: var(--trace) !important; }
-#yard .lit-fill { fill: var(--trace) !important; stroke: var(--trace-ink) !important; }
-#yard .heartbeat { stroke-dasharray: 6 5; }
-#yard .count { font-family: var(--sign); font-size: 12px; fill: var(--ink-soft); }
+.yard-wrap { overflow-x: auto; background: var(--paper-2); border-radius: 6px; padding: .5rem 0; }
+.yard-wrap[hidden] { display: none; }
+svg.graph { display: block; min-width: 820px; width: 100%; height: auto; }
+.yard text { font-family: var(--sign); fill: var(--ink); }
+.yard .small { font-family: var(--body); font-size: 11px; fill: var(--ink-soft); }
+.yard .num { font-size: 13px; fill: var(--steel-dark); }
+.yard .track { fill: none; stroke: var(--steel); stroke-width: 3; stroke-linecap: round; }
+.yard .trunk { stroke: var(--ink); stroke-width: 5; }
+.yard .branch-drop { stroke-dasharray: 2 6; }
+.yard .node.live { cursor: pointer; }
+.yard .node:focus { outline: none; }
+.yard .node:focus-visible .hit { stroke: var(--trace); stroke-width: 3; }
+.yard .hit { fill: transparent; stroke: none; rx: 4; }
+.yard .node.live:hover .hit { fill: rgba(22, 34, 46, .05); }
+.yard .selected .hit { fill: rgba(227, 162, 26, .14); }
+.yard .switch { fill: var(--paper-2); stroke: var(--ink); stroke-width: 3; }
+.yard .switch.loud { fill: var(--ink); }
+.yard .switch.bad { fill: var(--stop); stroke: var(--stop); }
+.yard .platform { fill: var(--go); }
+.yard .type { font-family: var(--body); font-size: 10.5px; fill: var(--steel-dark); }
+.yard .buffer { fill: var(--stop); }
+.yard .buffer-idle { fill: var(--steel-dark); }
+.yard .src-dot { fill: var(--ink); }
+.yard .src-dot.pattern { fill: var(--paper-2); stroke: var(--ink); stroke-width: 2; }
+.yard .dim { opacity: .22; }
+.yard .lit { stroke: var(--trace) !important; }
+.yard .lit-fill { fill: var(--trace) !important; stroke: var(--trace-ink) !important; }
+.yard .heartbeat { stroke-dasharray: 6 5; }
+.yard .open-ic rect { fill: var(--paper); stroke: var(--steel); stroke-width: 1.2; }
+.yard .open-ic path { fill: none; stroke: var(--ink-soft); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.yard .open-ic:hover rect, .yard .open-ic:focus-visible rect { fill: #F8E7BF; stroke: var(--trace-ink); stroke-width: 1.6; }
+.yard .open-ic:hover path, .yard .open-ic:focus-visible path { stroke: var(--trace-ink); }
+.yard .open-ic:focus { outline: none; }
+.yard .count { font-family: var(--sign); font-size: 12px; fill: var(--ink-soft); }
 @media (prefers-reduced-motion: no-preference) {
-  #yard .lit { stroke-dasharray: 14 10; animation: run 0.9s linear infinite; }
+  .yard .lit { stroke-dasharray: 14 10; animation: run 0.9s linear infinite; }
   @keyframes run { to { stroke-dashoffset: -24; } }
 }
 
-aside#detail { background: var(--paper-2); border-radius: 6px; padding: 1.25rem 1.5rem; align-self: start; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
-@media (max-width: 1100px) { aside#detail { position: static; max-height: none; margin-top: 1.5rem; } }
-aside#detail h2 { margin: 0 0 .25rem; font-size: 1.5rem; }
-aside#detail .kind { color: var(--ink-soft); margin: 0 0 1rem; }
-aside#detail dl { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0 0 1rem; }
-aside#detail dt { color: var(--ink-soft); }
-aside#detail dd { margin: 0; overflow-wrap: anywhere; }
-aside#detail h3 { font-size: 1rem; margin: 1.25rem 0 .4rem; }
+.legend { display: flex; flex-wrap: wrap; gap: .35rem 1.25rem; margin: .6rem 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-soft); }
+.legend li { display: inline-flex; align-items: center; gap: .45rem; }
+.legend svg { flex: none; overflow: visible; }
+
+.panel { background: var(--paper-2); border-radius: 6px; padding: 1.25rem 1.5rem; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
+@media (max-width: 1100px) { .panel { position: static; max-height: none; } }
+.panel h2 { margin: 0 0 .25rem; font-size: 1.5rem; overflow-wrap: anywhere; }
+.panel .kind { color: var(--ink-soft); margin: 0 0 1rem; }
+.panel button.back { margin: 0 0 .9rem; }
+.panel .open { margin: -.5rem 0 1rem; font-family: var(--sign); font-weight: 700; }
+.panel dl { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; margin: 0 0 1rem; }
+.panel dt { color: var(--ink-soft); }
+.panel dd { margin: 0; overflow-wrap: anywhere; }
+.panel h3 { font-size: 1rem; margin: 1.25rem 0 .4rem; }
 pre, code { font-family: var(--code); font-size: 12.5px; }
 pre { background: var(--paper); padding: .75rem; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; margin: 0; }
 .pill { display: inline-block; padding: 0 .45rem; border-radius: 3px; font-size: 12.5px; background: var(--paper); margin: 0 .25rem .25rem 0; }
+a.pill { text-decoration: none; }
+a.pill:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
 .pill.go { background: #D6ECDF; color: #1D5E3A; }
 .pill.stop { background: #F4D7D3; color: #8E2A20; }
 .pill.trace { background: #F8E7BF; color: var(--trace-ink); }
 .muted { color: var(--ink-soft); }
 .empty { color: var(--ink-soft); }
+h2.section { font-size: 1.35rem; margin: 0 0 .75rem; }
 
-section.lower { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; margin-top: 2rem; }
-@media (max-width: 900px) { section.lower { grid-template-columns: 1fr; } }
-section.lower h2 { font-size: 1.35rem; margin: 0 0 .75rem; }
-
-form#try { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem 1rem; }
+form#try { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem 1rem; margin-bottom: 1.25rem; }
 form#try label { display: grid; gap: .25rem; color: var(--ink-soft); }
 form#try .wide { grid-column: 1 / -1; }
 form#try input, form#try select, form#try textarea {
@@ -115,45 +147,44 @@ button.primary:hover { background: #24384B; }
 button.ghost.small { font-size: .85rem; padding: .1rem .5rem; }
 .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin: .75rem 0; align-items: center; }
 .note { color: var(--ink-soft); font-size: .9rem; }
-#silences form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr) auto; gap: .75rem; align-items: end; }
-#silences form input { min-width: 0; }
-#silences form label { display: grid; gap: .25rem; color: var(--ink-soft); }
-#silences form input { background: var(--paper-2); border: 1.5px solid var(--steel); border-radius: 4px; padding: .4rem .6rem; color: var(--ink); }
-@media (max-width: 760px) { #silences form { grid-template-columns: 1fr; } }
+#silence-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr) auto; gap: .75rem; align-items: end; }
+#silence-form label { display: grid; gap: .25rem; color: var(--ink-soft); }
+#silence-form input { min-width: 0; background: var(--paper-2); border: 1.5px solid var(--steel); border-radius: 4px; padding: .4rem .6rem; color: var(--ink); }
+@media (max-width: 760px) { #silence-form { grid-template-columns: 1fr; } }
 
 ol.trace { list-style: none; padding: 0; margin: 0 0 1rem; counter-reset: step; }
 ol.trace li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .5rem; padding: .3rem 0; border-bottom: 1px solid var(--paper); }
 ol.trace li::before { content: counter(step); font-family: var(--sign); color: var(--steel-dark); text-align: right; }
 ol.trace li.hit::before { color: var(--trace-ink); }
-ol.trace .why { color: var(--ink-soft); font-size: 13px; }
+.why { color: var(--ink-soft); font-size: 13px; }
 .bubble { background: var(--paper-2); border-left: 4px solid var(--steel); padding: .6rem .9rem; border-radius: 0 4px 4px 0; margin: 0 0 .75rem; }
+.panel .bubble { background: var(--paper); }
 .bubble.loud { border-left-color: var(--trace); }
 .bubble .meta { font-size: 13px; color: var(--ink-soft); margin-bottom: .3rem; }
 .bubble .meta b { font-family: var(--sign); color: var(--ink); font-size: 14px; }
 .bubble .msg p { margin: .2rem 0; }
 .bubble .msg ul { margin: .2rem 0; padding-left: 1.2rem; }
-.bubble .msg pre { background: var(--paper); }
+.bubble .msg pre { background: var(--paper-2); }
 .error { color: var(--stop); }
 
-#events, #audit, #silences { grid-column: 1 / -1; margin-top: 2rem; }
-#events h2 { font-size: 1.35rem; margin: 0 0 .75rem; }
 table { width: 100%; border-collapse: collapse; background: var(--paper-2); border-radius: 6px; overflow: hidden; }
 th, td { text-align: left; padding: .45rem .8rem; border-bottom: 1px solid var(--paper); vertical-align: top; }
 th { font-family: var(--sign); font-weight: 700; color: var(--ink-soft); }
 td.time { white-space: nowrap; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.table-wrap { overflow-x: auto; }
 .dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .4rem; background: var(--steel-dark); vertical-align: baseline; }
 .dot.queued, .dot.delivered, .dot.fallback { background: var(--go); } .dot.dropped { background: var(--stop); }
 .dot.rejected, .dot.error, .dot.failed { background: var(--stop); outline: 2px solid #F4D7D3; }
 .dot.duplicate { background: var(--steel); }
-.dot.pending { background: var(--trace); }
+.dot.pending, .dot.heartbeat { background: var(--trace); }
 .filters { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin: 0 0 .75rem; align-items: end; }
 .filters label { display: grid; gap: .25rem; color: var(--ink-soft); }
 .filters .grow { flex: 1 1 16rem; }
 .filters select, .filters input { background: var(--paper-2); border: 1.5px solid var(--steel); border-radius: 4px; padding: .4rem .6rem; color: var(--ink); }
-#audit tbody tr { cursor: pointer; }
-#audit tbody tr:hover { background: var(--paper); }
-#audit tbody tr.sel { background: #F8E7BF; }
-#audit tbody tr:focus-visible { outline: 3px solid var(--trace); outline-offset: -3px; }
+#audit-body tr { cursor: pointer; }
+#audit-body tr:hover { background: var(--paper); }
+#audit-body tr.sel { background: #F8E7BF; }
+#audit-body tr:focus-visible { outline: 3px solid var(--trace); outline-offset: -3px; }
 ul.attempts { list-style: none; padding: 0; margin: .4rem 0 0; font-size: 13px; }
 ul.attempts li { display: grid; grid-template-columns: 6.5rem 1fr; gap: .5rem; padding: .15rem 0; }
 ul.attempts .ok { color: var(--go); }
@@ -164,23 +195,11 @@ ul.attempts .bad { color: var(--stop); overflow-wrap: anywhere; }
 .nodes .n.down i { background: var(--stop); }
 .nodes .n.lead { text-decoration: underline; text-decoration-color: var(--trace); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .evt-h { font-family: var(--sign); margin: 1rem 0 .4rem; }
-.dot.heartbeat { background: var(--trace); }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-/* Wide screens: the detail panel keeps its own column all the way down and
-   follows the scroll, so it never covers the audit log or the tracer. */
-@media (min-width: 1101px) {
-  aside#detail { grid-column: 2; grid-row: 1 / span 6; }
-  section.lower, #events, #audit, #silences { grid-column: 1; }
-}
-@media (min-width: 1101px) and (max-width: 1600px) {
-  section.lower { grid-template-columns: minmax(0, 1fr); } /* form above its result */
-}
 </style>
 </head>
 <body>
 <header class="bar">
-  <h1>stellwerk</h1>
-  <p>Sources on the left, rules in the order they are checked, destinations on the right.</p>
+  <h1><a href="#/">stellwerk</a></h1>
   <div class="counts" aria-live="polite">
     <span><b id="c-src">0</b>sources</span>
     <span><b id="c-rules">0</b>rules</span>
@@ -192,19 +211,37 @@ ul.attempts .bad { color: var(--stop); overflow-wrap: anywhere; }
   </div>
 </header>
 
+<nav class="tabs" aria-label="Sections">
+  <a href="#/" data-tab="yard">Yard</a>
+  <a href="#/trace" data-tab="trace">Try a payload</a>
+  <a href="#/audit" data-tab="audit" id="tab-audit">Audit log</a>
+  <a href="#/silences" data-tab="silences" id="tab-silences" hidden>Silences<span class="badge" id="silence-count" title="Active silences"></span></a>
+</nav>
+<div class="banner" id="banner" role="alert" hidden><p id="banner-text"></p><button class="ghost small" type="button" id="banner-close">Dismiss</button></div>
+
 <main>
-  <div>
-    <div id="yard-wrap"><svg id="yard" role="group" aria-label="Dataflow from sources through rules to destinations"></svg></div>
-  </div>
-
-  <aside id="detail" aria-live="polite">
-    <h2>Pick something</h2>
-    <p class="kind">Select a source, rule, heartbeat or destination in the yard to see how it is wired. Trace a payload below to watch its path.</p>
-  </aside>
-
-  <section class="lower">
+  <section class="view" id="v-yard" hidden>
     <div>
-      <h2>Try a payload</h2>
+      <p class="intro muted">Sources on the left, rules in the order they are checked, destinations on the right. Click one to see how it is wired, or its ↗ to open its page.</p>
+      <div class="yard-wrap"><svg id="yard" class="yard graph" role="group" aria-label="Dataflow from sources through rules to destinations"></svg></div>
+      <div class="legend-slot"></div>
+    </div>
+    <aside class="panel" id="detail" aria-live="polite"></aside>
+  </section>
+
+  <section class="view" id="v-page" hidden>
+    <div>
+      <p class="crumbs" id="crumbs"></p>
+      <p class="intro muted" id="page-note">Only what connects to this one. Click any part for its details, or its ↗ to open its page.</p>
+      <div class="yard-wrap" id="focus-wrap"><svg id="focus" class="yard graph" role="group" aria-label="Connections"></svg></div>
+      <div class="legend-slot"></div>
+    </div>
+    <aside class="panel" id="page-detail" aria-live="polite"></aside>
+  </section>
+
+  <section class="view" id="v-trace" hidden>
+    <div>
+      <h2 class="section">Try a payload</h2>
       <form id="try">
         <div class="samples wide" id="samples"><span>Samples:</span></div>
         <label>Source<input id="t-source" list="sources-list" required value="alertmanager" autocomplete="off"></label>
@@ -213,50 +250,90 @@ ul.attempts .bad { color: var(--stop); overflow-wrap: anywhere; }
         <div class="wide"><button class="primary" type="submit">Trace this payload</button> <span class="muted" id="t-kind">Nothing is sent.</span></div>
       </form>
       <datalist id="sources-list"></datalist>
+      <div id="trace-graph" hidden>
+        <h2 class="section">Its path</h2>
+        <div class="yard-wrap"><svg id="trace-yard" class="yard graph" role="group" aria-label="Path of the traced payload"></svg></div>
+        <div class="legend-slot"></div>
+      </div>
     </div>
-    <div id="result">
-      <h2>Result</h2>
-      <p class="empty">Trace a payload to see which rules it passes, why each one did or did not match, and the message each destination would get.</p>
-    </div>
+    <aside class="panel" id="result" aria-live="polite">
+      <div id="result-body">
+        <h2>Result</h2>
+        <p class="empty">Trace a payload to see which rules it passes, why each one did or did not match, and the message each destination would get.</p>
+      </div>
+      <div id="trace-detail" hidden></div>
+    </aside>
   </section>
 
-  <section id="silences" hidden>
-    <h2>Silences</h2>
-    <p class="note">A silence mutes matching events for a while, e.g. during maintenance. They still show up in the audit log as silenced. Match on <code>source=</code>, <code>status=</code> or any label, e.g. <code>source=k8s* severity=warning</code>. A heartbeat alarm is muted with <code>heartbeat=&lt;name&gt;</code>.</p>
-    <form id="silence-form">
-      <label>Matchers<input id="s-match" required placeholder="source=alertmanager namespace=media" autocomplete="off"></label>
-      <label>For<input id="s-for" required value="2h" placeholder="30m, 2h, 1d"></label>
-      <label>Comment<input id="s-comment" placeholder="NAS disk swap"></label>
-      <button class="primary" type="submit">Mute</button>
-    </form>
-    <p class="note" id="s-msg" role="status"></p>
-    <table>
-      <thead><tr><th>Mutes</th><th>Until</th><th>By</th><th>Comment</th><th></th></tr></thead>
-      <tbody id="silence-body"></tbody>
-    </table>
+  <section class="view" id="v-audit" hidden>
+    <div>
+      <h2 class="section" id="audit-h">Audit log</h2>
+      <form class="filters" id="audit-filter" role="search">
+        <label>Source<select id="a-source"><option value="">all</option></select></label>
+        <label>Verdict<select id="a-verdict">
+          <option value="">all</option><option>delivered</option><option>fallback</option><option>failed</option><option>pending</option>
+          <option>dropped</option><option>silenced</option><option>unmatched</option><option>duplicate</option><option>rejected</option>
+          <option>heartbeat</option><option>error</option></select></label>
+        <label class="grow">Search<input id="a-q" type="search" placeholder="Text in payload, labels, reasons or errors"></label>
+      </form>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Time</th><th>Source</th><th>Verdict</th><th>Rules</th><th>Sent to</th></tr></thead>
+        <tbody id="audit-body"><tr><td colspan="5" class="empty">Loading …</td></tr></tbody>
+      </table></div>
+    </div>
+    <aside class="panel" id="audit-detail" aria-live="polite"></aside>
   </section>
 
-  <section id="audit">
-    <h2 id="audit-h">Audit log</h2>
-    <form class="filters" id="audit-filter" role="search">
-      <label>Source<select id="a-source"><option value="">all</option></select></label>
-      <label>Verdict<select id="a-verdict">
-        <option value="">all</option><option>delivered</option><option>fallback</option><option>failed</option><option>pending</option>
-        <option>dropped</option><option>silenced</option><option>unmatched</option><option>duplicate</option><option>rejected</option>
-        <option>heartbeat</option><option>error</option></select></label>
-      <label class="grow">Search<input id="a-q" type="search" placeholder="Text in payload, labels, reasons or errors"></label>
-    </form>
-    <table>
-      <thead><tr><th>Time</th><th>Source</th><th>Verdict</th><th>Rules</th><th>Sent to</th></tr></thead>
-      <tbody id="audit-body"><tr><td colspan="5" class="empty">Nothing received since this node started. Point a sender at /in/&lt;source&gt;, every message will show up here.</td></tr></tbody>
-    </table>
+  <section class="view single" id="v-silences" hidden>
+    <div>
+      <h2 class="section">Silences</h2>
+      <p class="note" id="s-off" hidden>Silences cannot be changed on this node.</p>
+      <div id="s-on">
+        <p class="note">A silence mutes matching events for a while, e.g. during maintenance. They still show up in the audit log as silenced. Match on <code>source=</code>, <code>status=</code> or any label, e.g. <code>source=k8s* severity=warning</code>. A heartbeat alarm is muted with <code>heartbeat=&lt;name&gt;</code>.</p>
+        <form id="silence-form">
+          <label>Matchers<input id="s-match" required placeholder="source=alertmanager namespace=media" autocomplete="off"></label>
+          <label>For<input id="s-for" required value="2h" placeholder="30m, 2h, 1d"></label>
+          <label>Comment<input id="s-comment" placeholder="NAS disk swap"></label>
+          <button class="primary" type="submit">Mute</button>
+        </form>
+        <p class="note" id="s-msg" role="status"></p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Mutes</th><th>Until</th><th>By</th><th>Comment</th><th></th></tr></thead>
+          <tbody id="silence-body"></tbody>
+        </table></div>
+      </div>
+    </div>
   </section>
 </main>
+
+<template id="legend-tpl">
+  <ul class="legend" aria-label="Legend">
+    <li><svg class="yard" width="34" height="12" aria-hidden="true"><path class="track trunk" d="M3 6 H31"/></svg>main line, rules are checked top to bottom</li>
+    <li><svg class="yard" width="34" height="12" aria-hidden="true"><path class="track" d="M3 6 H31"/></svg>sends to a destination</li>
+    <li><svg class="yard" width="34" height="12" aria-hidden="true"><path class="track branch-drop" d="M3 6 H31"/></svg>dropped, or no rule matched</li>
+    <li><svg class="yard" width="34" height="12" aria-hidden="true"><path class="track heartbeat" d="M3 6 H31"/></svg>heartbeat alarm</li>
+    <li><svg class="yard" width="16" height="16" aria-hidden="true"><circle class="switch" cx="8" cy="8" r="5.5"/></svg>rule, stops at its match</li>
+    <li><svg class="yard" width="16" height="16" aria-hidden="true"><rect class="switch" x="3" y="3" width="10" height="10" transform="rotate(45 8 8)"/></svg>rule with continue, later rules are checked too</li>
+    <li><svg class="yard" width="16" height="16" aria-hidden="true"><circle class="switch loud" cx="8" cy="8" r="5.5"/></svg>loud, phones notify</li>
+    <li><svg class="yard" width="16" height="16" aria-hidden="true"><circle class="switch bad" cx="8" cy="8" r="5.5"/></svg>heartbeat missing or failed</li>
+    <li><svg class="yard" width="16" height="16" aria-hidden="true"><circle class="src-dot pattern" cx="8" cy="8" r="5"/></svg>source pattern, nothing by that name yet</li>
+    <li><svg class="yard" width="12" height="18" aria-hidden="true"><rect class="platform" x="1" y="0" width="10" height="18" rx="2"/></svg>destination has sent</li>
+    <li><svg class="yard" width="12" height="18" aria-hidden="true"><rect class="buffer-idle" x="1" y="0" width="10" height="18" rx="2"/></svg>nothing sent yet</li>
+    <li><svg class="yard" width="8" height="20" aria-hidden="true"><rect class="buffer" x="1" y="0" width="6" height="20"/></svg>buffer stop: dropped</li>
+    <li><svg class="yard" width="34" height="12" aria-hidden="true"><path class="track" d="M3 6 H31" style="stroke:var(--trace)"/></svg>path of a traced payload or audit entry</li>
+    <li><svg class="yard" width="18" height="18" aria-hidden="true"><g class="open-ic"><rect x="1" y="1" width="16" height="16" rx="3"/><path d="M6 12 L12 6 M8 6 H12 V10"/></g></svg>opens its own page</li>
+  </ul>
+</template>
 
 <script>
 "use strict";
 const NS = "http://www.w3.org/2000/svg";
-let flows = null, selected = null, traced = null, auditEntry = null, auditOn = true;
+// selected and yardTrace belong to the overview yard, lastTrace to "Try a payload".
+let flows = null, selected = null, yardTrace = null, lastTrace = null, auditEntry = null, auditOn = true;
+let yardReg = null, pageReg = null, traceReg = null, pageSel = null, traceSel = null, route = { view: "yard", id: "" };
+const PAGES = ["source", "rule", "heartbeat", "destination", "target"];
+const VIEWS = ["yard", "trace", "audit", "silences", ...PAGES];
+const KIND_WORD = { source: "Source", rule: "Rule", heartbeat: "Heartbeat", destination: "Destination", target: "Target" };
 const $ = (s) => document.querySelector(s);
 function el(tag, attrs = {}, text) {
   const e = document.createElement(tag);
@@ -277,6 +354,7 @@ function globToRe(g) {
 }
 const sourceMatches = (rule, src) => !rule.source || globToRe(rule.source).test(src);
 const pretty = (d) => d.replace(/(\d+[hm])0s$/, "$1").replace(/(\d+h)0m$/, "$1");
+const motion = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
 function ago(t) {
   if (!t || t.startsWith("0001")) return "never";
   const s = Math.max(0, (Date.now() - new Date(t)) / 1000);
@@ -299,15 +377,80 @@ const destVia = (alias) => {
   return d.account && d.account !== "default" ? `${d.type} as ${d.account}` : d.type || "";
 };
 
+// ---------- links ----------
+const href = (kind, id) => `#/${kind}/${encodeURIComponent(id)}`;
+const link = (kind, id, text = id, cls) => el("a", cls ? { href: href(kind, id), class: cls } : { href: href(kind, id) }, text);
+function links(kind, ids, fmt = (x) => x) {
+  const s = el("span");
+  ids.forEach((id, i) => { if (i) s.append(", "); s.append(link(kind, id, fmt(id))); });
+  return s;
+}
+function linkPills(kind, items, cls = "") {
+  const f = document.createDocumentFragment();
+  items.forEach(([id, text]) => f.append(link(kind, id, text, "pill " + cls)));
+  return f;
+}
+const rulePills = (rules, cls) => linkPills("rule", rules.map((r) => [r.name, `${r.index + 1} ${r.name}`]), cls);
+
+function parseHash() {
+  const parts = location.hash.replace(/^#\/?/, "").split("/");
+  let view = decodeURIComponent(parts[0] || "yard");
+  const id = parts.slice(1).map(decodeURIComponent).join("/");
+  if (!VIEWS.includes(view) || (PAGES.includes(view) && !id)) view = "yard";
+  return { view, id };
+}
+
+// ---------- which part of the yard to draw ----------
+function fullView() {
+  return { sources: flows.sources, heartbeats: flows.heartbeats, routes: flows.routes, destinations: flows.destinations, drop: true, none: true };
+}
+
+// A rule whose source glob names no known source gets a pattern node.
+function sourcesFor(rules) {
+  const found = flows.sources.filter((s) => rules.some((r) => sourceMatches(r, s.name)));
+  if (found.length) return found;
+  return rules.filter((r) => r.source).map((r) => ({ name: r.source, kind: "pattern", pattern: true }));
+}
+
+// Everything that connects to one source, rule, heartbeat, destination or target.
+function focusView(kind, id) {
+  const F = flows;
+  const pick = (aliases) => F.destinations.filter((d) => aliases.has(d.alias));
+  const sourceNode = (name, fallbackKind) => F.sources.find((s) => s.name === name) || { name, kind: fallbackKind || "unknown", pattern: true };
+  if (kind === "source") {
+    const routes = F.routes.filter((r) => sourceMatches(r, id));
+    const heartbeats = F.heartbeats.filter((h) => h.source === id);
+    const aliases = new Set([...routes.flatMap((r) => (r.drop ? [] : r.to || [])), ...heartbeats.flatMap((h) => h.to)]);
+    return { sources: [sourceNode(id, lastTrace && lastTrace.source === id ? lastTrace.kind : "")], routes, heartbeats, destinations: pick(aliases), drop: routes.some((r) => r.drop), none: true };
+  }
+  if (kind === "rule") {
+    const r = F.routes.find((x) => x.name === id);
+    return { sources: sourcesFor([r]), routes: [r], heartbeats: [], destinations: pick(new Set(r.drop ? [] : r.to || [])), drop: r.drop, none: false };
+  }
+  if (kind === "heartbeat") {
+    const h = F.heartbeats.find((x) => x.name === id);
+    return { sources: h.source ? [sourceNode(h.source)] : [], routes: [], heartbeats: [h], destinations: pick(new Set(h.to)), drop: false, none: false };
+  }
+  const aliases = new Set(kind === "destination" ? [id] : F.destinations.filter((d) => d.target === id).map((d) => d.alias));
+  const routes = F.routes.filter((r) => !r.drop && (r.to || []).some((a) => aliases.has(a)));
+  const heartbeats = F.heartbeats.filter((h) => h.to.some((a) => aliases.has(a)));
+  const hbSources = new Set(heartbeats.map((h) => h.source).filter(Boolean));
+  let sources = F.sources.filter((s) => hbSources.has(s.name) || routes.some((r) => sourceMatches(r, s.name)));
+  if (!sources.length) sources = sourcesFor(routes);
+  return { sources, routes, heartbeats, destinations: pick(aliases), drop: false, none: false };
+}
+
 // ---------- yard ----------
 const W = 1000, ROW = 58, TOP = 56, SRC_X = 150, TRUNK_X = 300, DEST_X = 830, STRAIGHT = 390;
 const branch = (y, ty) => `M${TRUNK_X} ${y} H${TRUNK_X + STRAIGHT} C ${TRUNK_X + STRAIGHT + 90} ${y}, ${DEST_X - 90} ${ty}, ${DEST_X - 12} ${ty}`;
 
-function drawYard() {
-  const yard = $("#yard");
+// drawYard draws view into the svg. Clicking a part calls onSelect, its
+// ↗ icon opens its page.
+function drawYard(yard, view, onSelect) {
   yard.textContent = "";
-  const { sources, routes, destinations, heartbeats, stats } = flows;
-  const hbs = heartbeats || [];
+  const { sources, routes, destinations } = view;
+  const hbs = view.heartbeats || [];
+  const stats = flows.stats;
   const rows = routes.length + hbs.length;
   const firstUse = (alias) => {
     const h = hbs.findIndex((x) => x.to.includes(alias));
@@ -316,8 +459,8 @@ function drawYard() {
     return i < 0 ? 1e6 : i;
   };
   const dests = [...destinations].sort((a, b) => firstUse(a.alias) - firstUse(b.alias));
-  const rightCount = dests.length + 2; // plus "Dropped" and "No rule matched"
-  const H = TOP * 2 + Math.max(rows + 1, sources.length, rightCount) * ROW;
+  const rightCount = dests.length + (view.drop ? 1 : 0) + (view.none ? 1 : 0);
+  const H = TOP * 2 + Math.max(rows + (view.none ? 1 : 0), sources.length, rightCount, 1) * ROW; // the extra row holds "No rule matched"
   yard.setAttribute("viewBox", `0 0 ${W} ${H}`);
 
   const span = (n) => (n <= 1 ? 0 : (H - TOP * 2 - ROW) / (n - 1));
@@ -326,45 +469,52 @@ function drawYard() {
   const ruleY = (i) => rowY(i + hbs.length);
   const rightY = (i) => TOP + ROW / 2 + i * Math.min(ROW * 1.15, span(rightCount) || ROW);
   const entryY = TOP + ROW / 2 - 34;
-  const endY = ruleY(routes.length - 1) + ROW * 0.75;
+  const endY = rowY(Math.max(rows - 1, 0)) + ROW * 0.75;
 
   const gTracks = svg("g"), gNodes = svg("g");
   yard.append(gTracks, gNodes);
-  const reg = { src: {}, rule: {}, dest: {}, hb: {} };
-  reg.trunk = svg("path", { class: "track trunk", d: `M${TRUNK_X} ${entryY} V${endY}` });
-  gTracks.append(reg.trunk);
+  const reg = { root: yard, gTracks, src: {}, rule: {}, dest: {}, hb: {} };
+  gTracks.append(svg("path", { class: "track trunk", d: `M${TRUNK_X} ${entryY} V${endY}` }));
 
   const pos = {};
   dests.forEach((d, i) => (pos[d.alias] = rightY(i)));
-  pos.__drop = rightY(dests.length);
-  pos.__none = Math.max(endY, pos.__drop + 46); // never on top of "Dropped" in small yards
+  let next = dests.length;
+  if (view.drop) pos.__drop = rightY(next++);
+  if (view.none) pos.__none = Math.max(endY, (next ? rightY(next - 1) : 0) + 46); // never on top of "Dropped" in small yards
 
   sources.forEach((s, i) => {
     const y = srcY(i);
     const p = svg("path", { class: "track", d: `M${SRC_X + 10} ${y} C ${SRC_X + 80} ${y}, ${TRUNK_X - 60} ${entryY}, ${TRUNK_X} ${entryY}` });
     gTracks.append(p);
     const st = stats.sources[s.name];
-    const g = node(gNodes, "source", s.name, `Source ${s.name}`);
+    const kind = s.pattern ? "pattern" : "source";
+    const g = node(gNodes, kind, s.name, `Source ${s.name}`, onSelect);
     g.append(svg("rect", { class: "hit", x: 4, y: y - 22, width: SRC_X + 12, height: 44 }));
-    g.append(svg("circle", { class: "src-dot", cx: SRC_X + 6, cy: y, r: 6 }));
-    g.append(svg("text", { x: SRC_X - 8, y: y + 1, "text-anchor": "end", "font-size": 16, "dominant-baseline": "middle" }, s.name));
-    g.append(svg("text", { class: "small", x: SRC_X - 8, y: y + 17, "text-anchor": "end" }, st ? `${s.kind}, ${st.received} in, ${ago(st.lastSeen)}` : s.kind));
+    g.append(svg("circle", { class: "src-dot" + (s.pattern ? " pattern" : ""), cx: SRC_X + 6, cy: y, r: 6 }));
+    const name = svg("text", { x: SRC_X - 8, y: y + 1, "text-anchor": "end", "font-size": 16, "dominant-baseline": "middle" }, s.name);
+    g.append(name);
+    pageIcon(g, kind, s.name, name, "left", y + 1);
+    const sub = s.pattern ? (s.kind && s.kind !== "pattern" && s.kind !== "unknown" ? s.kind : "source pattern") : st ? `${s.kind}, ${st.received} in, ${ago(st.lastSeen)}` : s.kind;
+    g.append(svg("text", { class: "small", x: SRC_X - 8, y: y + 17, "text-anchor": "end" }, sub));
     reg.src[s.name] = { g, path: p };
   });
 
-  const branchesFor = (y, targets, cls) => targets.map((alias) => {
-    const p = svg("path", { class: "track" + cls, d: branch(y, pos[alias] ?? pos.__none) });
+  const branchesFor = (y, targets, cls) => targets.flatMap((alias) => {
+    const ty = pos[alias] ?? pos.__none;
+    if (ty === undefined) return []; // not part of this view
+    const p = svg("path", { class: "track" + cls, d: branch(y, ty) });
     gTracks.append(p);
-    return { alias, path: p };
+    return [{ alias, path: p }];
   });
 
   hbs.forEach((h, i) => {
     const y = rowY(i);
-    const g = node(gNodes, "heartbeat", h.name, `Heartbeat ${h.name}`);
+    const g = node(gNodes, "heartbeat", h.name, `Heartbeat ${h.name}`, onSelect);
     g.append(svg("rect", { class: "hit", x: TRUNK_X - 30, y: y - 42, width: STRAIGHT + 40, height: 54 }));
-    const bad = h.missing || h.failed;
-    g.append(svg("circle", { class: "switch", cx: TRUNK_X, cy: y, r: 7, style: bad ? "stroke:var(--stop);fill:var(--stop)" : "" }));
-    g.append(svg("text", { x: TRUNK_X + 20, y: y - 24, "font-size": 15 }, "Heartbeat " + h.name));
+    g.append(svg("circle", { class: "switch" + (h.missing || h.failed ? " bad" : ""), cx: TRUNK_X, cy: y, r: 7 }));
+    const name = svg("text", { x: TRUNK_X + 20, y: y - 24, "font-size": 15 }, "Heartbeat " + h.name);
+    g.append(name);
+    pageIcon(g, "heartbeat", h.name, name, "right", y - 29);
     const from = h.source ? `from ${h.source}` : "pinged by URL";
     const now = h.failed ? "Failed." : h.missing ? "Missing now." : "Last seen " + ago(h.lastSeen) + ".";
     g.append(svg("text", { class: "small", x: TRUNK_X + 20, y: y - 8 }, `${from}, alerts after ${pretty(h.timeout)} of silence. ${now}`));
@@ -374,39 +524,46 @@ function drawYard() {
   routes.forEach((r, i) => {
     const y = ruleY(i);
     const st = stats.routes[r.name];
-    const g = node(gNodes, "rule", r.name, `Rule ${i + 1}, ${r.name}`);
+    const g = node(gNodes, "rule", r.name, `Rule ${r.index + 1}, ${r.name}`, onSelect);
     g.append(svg("rect", { class: "hit", x: TRUNK_X - 44, y: y - 42, width: STRAIGHT + 54, height: 54 }));
-    g.append(svg("text", { class: "num", x: TRUNK_X - 16, y: y + 1, "text-anchor": "end", "dominant-baseline": "middle" }, String(i + 1)));
+    g.append(svg("text", { class: "num", x: TRUNK_X - 16, y: y + 1, "text-anchor": "end", "dominant-baseline": "middle" }, String(r.index + 1)));
     const sw = r.continue
       ? svg("rect", { class: "switch" + (r.loud ? " loud" : ""), x: TRUNK_X - 7, y: y - 7, width: 14, height: 14, transform: `rotate(45 ${TRUNK_X} ${y})` })
       : svg("circle", { class: "switch" + (r.loud ? " loud" : ""), cx: TRUNK_X, cy: y, r: 7 });
     g.append(sw);
-    g.append(svg("text", { x: TRUNK_X + 20, y: y - 24, "font-size": 15 }, r.name));
+    const name = svg("text", { x: TRUNK_X + 20, y: y - 24, "font-size": 15 }, r.name);
+    g.append(name);
+    pageIcon(g, "rule", r.name, name, "right", y - 29);
     let sub = conditionText(r);
     if (sub.length > 62) sub = sub.slice(0, 60) + "…";
     g.append(svg("text", { class: "small", x: TRUNK_X + 20, y: y - 8 }, sub));
     if (st && st.matched) g.append(svg("text", { class: "count", x: TRUNK_X + STRAIGHT, y: y - 8, "text-anchor": "end" }, `${st.matched}× matched`));
     const branches = r.drop ? branchesFor(y, ["__drop"], " branch-drop") : branchesFor(y, r.to || [], "");
-    reg.rule[r.name] = { g, sw, rule: r, branches };
+    reg.rule[r.name] = { g, sw, rule: r, branches, y };
   });
 
   dests.forEach((d) => {
     const y = pos[d.alias];
     const st = stats.destinations[d.alias];
-    const g = node(gNodes, "destination", d.alias, `Destination ${d.alias}`);
+    const g = node(gNodes, "destination", d.alias, `Destination ${d.alias}`, onSelect);
     g.append(svg("rect", { class: "hit", x: DEST_X - 16, y: y - 22, width: W - DEST_X + 10, height: 44 }));
     const plat = svg("rect", { class: st && st.delivered ? "platform" : "buffer-idle", x: DEST_X - 12, y: y - 9, width: 10, height: 18, rx: 2 });
     g.append(plat);
-    g.append(svg("text", { x: DEST_X + 8, y: y + 1, "font-size": 16, "dominant-baseline": "middle" }, d.alias));
+    const name = svg("text", { x: DEST_X + 8, y: y + 1, "font-size": 16, "dominant-baseline": "middle" }, d.alias);
+    g.append(name);
+    pageIcon(g, "destination", d.alias, name, "right", y + 1);
     const sent = st ? `${st.delivered} sent${st.failed ? ", " + st.failed + " failed" : ""}` : "nothing sent";
     const via = d.account && d.account !== "default" ? `${d.target}/${d.account}` : d.target;
     const fb = (d.fallback || []).length ? `, ↪ ${d.fallback.join(", ")}` : "";
     g.append(svg("text", { class: "small", x: DEST_X + 8, y: y + 17 }, `${via}, ${sent}${fb}`));
     reg.dest[d.alias] = { g, plat };
   });
-  for (const [kind, alias, label, sub, cls] of [["dropped", "__drop", "Dropped", "drop rules end here", "buffer"], ["unmatched", "__none", "No rule matched", "end of the line", "buffer-idle"]]) {
+  const ends = [];
+  if (view.drop) ends.push(["dropped", "__drop", "Dropped", "drop rules end here", "buffer"]);
+  if (view.none) ends.push(["unmatched", "__none", "No rule matched", "end of the line", "buffer-idle"]);
+  for (const [kind, alias, label, sub, cls] of ends) {
     const y = pos[alias];
-    const g = node(gNodes, kind, kind, label);
+    const g = node(gNodes, kind, kind, label, onSelect);
     g.append(svg("rect", { class: "hit", x: DEST_X - 16, y: y - 22, width: W - DEST_X + 10, height: 44 }));
     const plat = svg("rect", { class: cls, x: DEST_X - 14, y: y - 11, width: 6, height: 22 });
     g.append(plat);
@@ -414,48 +571,73 @@ function drawYard() {
     g.append(svg("text", { class: "small", x: DEST_X + 8, y: y + 17 }, sub));
     reg.dest[alias] = { g, plat };
   }
-  reg.endPath = svg("path", { class: "track branch-drop", d: pos.__none === endY ? `M${TRUNK_X} ${endY} H${DEST_X - 16}` : branch(endY, pos.__none) });
-  gTracks.append(reg.endPath);
-  reg.geo = { entryY, endY, ruleY, rowY, gTracks };
-  flows._reg = reg;
-  applyHighlight();
+  if (view.none) {
+    reg.endPath = svg("path", { class: "track branch-drop", d: pos.__none === endY ? `M${TRUNK_X} ${endY} H${DEST_X - 16}` : branch(endY, pos.__none) });
+    gTracks.append(reg.endPath);
+  }
+  reg.geo = { entryY, endY };
+  return reg;
 }
 
-function node(parent, kind, id, label) {
-  const g = svg("g", { class: "node", tabindex: 0, role: "button", "aria-label": label });
+function node(parent, kind, id, label, onSelect) {
+  const g = svg("g", { class: "node", "aria-label": label });
   g.dataset.kind = kind; g.dataset.id = id;
-  g.addEventListener("click", () => select(kind, id));
-  g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(kind, id); } });
+  if (kind !== "pattern") { // a pattern names no source, nothing to show
+    const go = () => onSelect(kind, id);
+    g.classList.add("live");
+    g.setAttribute("tabindex", 0);
+    g.setAttribute("role", "button");
+    g.addEventListener("click", go);
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  }
   parent.append(g);
   return g;
 }
 
+// pageIcon puts a ↗ link to the page of kind/id next to its name.
+function pageIcon(g, kind, id, name, side, cy) {
+  if (!PAGES.includes(kind)) return;
+  let w = 0;
+  try { w = name.getComputedTextLength(); } catch (_) {}
+  if (!w) w = name.textContent.length * 8; // not laid out, e.g. hidden
+  const tx = +name.getAttribute("x");
+  const x = side === "left" ? Math.max(2, tx - w - 22) : tx + w + 6;
+  const a = svg("a", { href: href(kind, id), class: "open-ic", "aria-label": `Open the page of ${kind} ${id}` });
+  a.append(svg("title", {}, "Open its page"));
+  a.append(svg("rect", { x, y: cy - 8, width: 16, height: 16, rx: 3 }));
+  a.append(svg("path", { d: `M${x + 5} ${cy + 3} L${x + 11} ${cy - 3} M${x + 7} ${cy - 3} H${x + 11} V${cy + 1}` }));
+  a.addEventListener("click", (e) => e.stopPropagation()); // follow the link, do not select
+  a.addEventListener("keydown", (e) => e.stopPropagation());
+  g.append(a);
+}
+
 const dim = (...els) => els.forEach((e) => e && e.classList.add("dim"));
 
-function applyHighlight() {
-  const reg = flows && flows._reg;
+// applyHighlight marks sel and lights up the path of tr (a trace) in reg.
+function applyHighlight(reg, sel, tr) {
   if (!reg) return;
-  document.querySelectorAll("#yard .dim, #yard .lit, #yard .lit-fill, #yard .selected").forEach((e) => e.classList.remove("dim", "lit", "lit-fill", "selected"));
-  document.querySelectorAll("#yard .trunk-trace").forEach((e) => e.remove());
-  if (selected) {
-    const g = document.querySelector(`#yard .node[data-kind="${selected.kind}"][data-id="${CSS.escape(selected.id)}"]`);
+  const root = reg.root;
+  root.querySelectorAll(".dim, .lit, .lit-fill, .selected").forEach((e) => e.classList.remove("dim", "lit", "lit-fill", "selected"));
+  root.querySelectorAll(".trunk-trace").forEach((e) => e.remove());
+  if (sel) {
+    const g = root.querySelector(`.node[data-kind="${sel.kind}"][data-id="${CSS.escape(sel.id)}"]`);
     if (g) g.classList.add("selected");
   }
   const rules = Object.entries(reg.rule), hbs = Object.entries(reg.hb);
-  if (traced) {
+  if (tr) {
     const hitRules = new Set(), reached = new Set(), hitHb = new Set();
     let stopY = reg.geo.entryY;
-    for (const ev of traced.events) {
+    for (const ev of tr.events) {
       if (ev.heartbeat) { hitHb.add(ev.heartbeat); continue; }
       ev.trace.filter((t) => t.matched).forEach((t) => hitRules.add(t.route));
       ev.deliveries.forEach((d) => reached.add(d.destination));
       if (ev.droppedBy) reached.add("__drop");
       if (!ev.droppedBy && !ev.deliveries.length) reached.add("__none");
-      const idx = ev.trace.findIndex((t) => t.matched && !(flows.routes.find((r) => r.name === t.route) || {}).continue);
-      stopY = Math.max(stopY, idx >= 0 ? reg.geo.ruleY(idx) : reg.geo.endY);
+      const stop = ev.trace.find((t) => t.matched && !(flows.routes.find((r) => r.name === t.route) || {}).continue);
+      stopY = Math.max(stopY, stop && reg.rule[stop.route] ? reg.rule[stop.route].y : reg.geo.endY);
     }
-    for (const [name, s] of Object.entries(reg.src)) name === traced.source ? s.path.classList.add("lit") : dim(s.g, s.path);
-    if (hitRules.size || reached.has("__none")) reg.geo.gTracks.append(svg("path", { class: "track trunk lit trunk-trace", d: `M${TRUNK_X} ${reg.geo.entryY} V${stopY}` }));
+    for (const [name, s] of Object.entries(reg.src)) name === tr.source ? s.path.classList.add("lit") : dim(s.g, s.path);
+    if (hitRules.size || reached.has("__none")) reg.gTracks.append(svg("path", { class: "track trunk lit trunk-trace", d: `M${TRUNK_X} ${reg.geo.entryY} V${stopY}` }));
     for (const [name, r] of rules) {
       if (hitRules.has(name)) { r.sw.classList.add("lit-fill"); r.branches.forEach((b) => b.path.classList.add("lit")); }
       else { dim(r.g); r.branches.forEach((b) => dim(b.path)); }
@@ -464,25 +646,25 @@ function applyHighlight() {
       if (hitHb.has(name)) h.g.classList.add("selected");
       else { dim(h.g); h.branches.forEach((b) => dim(b.path)); }
     }
-    reached.has("__none") ? reg.endPath.classList.add("lit") : dim(reg.endPath);
+    if (reg.endPath) reached.has("__none") ? reg.endPath.classList.add("lit") : dim(reg.endPath);
     for (const [alias, d] of Object.entries(reg.dest)) reached.has(alias) ? d.plat.classList.add("lit-fill") : dim(d.g);
     return;
   }
-  if (!selected) return;
-  if (selected.kind === "source") {
-    for (const [, r] of rules) if (!sourceMatches(r.rule, selected.id)) { dim(r.g); r.branches.forEach((b) => dim(b.path)); }
-    for (const [name, s] of Object.entries(reg.src)) if (name !== selected.id) dim(s.g, s.path);
-    for (const [name, h] of hbs) if (flows.heartbeats.find((x) => x.name === name).source !== selected.id) { dim(h.g); h.branches.forEach((b) => dim(b.path)); }
-  } else if (selected.kind === "destination" || selected.kind === "dropped") {
-    const alias = selected.kind === "dropped" ? "__drop" : selected.id;
+  if (!sel) return;
+  if (sel.kind === "source") {
+    for (const [, r] of rules) if (!sourceMatches(r.rule, sel.id)) { dim(r.g); r.branches.forEach((b) => dim(b.path)); }
+    for (const [name, s] of Object.entries(reg.src)) if (name !== sel.id) dim(s.g, s.path);
+    for (const [name, h] of hbs) if (flows.heartbeats.find((x) => x.name === name).source !== sel.id) { dim(h.g); h.branches.forEach((b) => dim(b.path)); }
+  } else if (sel.kind === "destination" || sel.kind === "dropped") {
+    const alias = sel.kind === "dropped" ? "__drop" : sel.id;
     for (const [, r] of rules) r.branches.forEach((b) => { if (b.alias !== alias) dim(b.path); });
     for (const [, r] of rules) if (!r.branches.some((b) => b.alias === alias)) dim(r.g);
     for (const [, h] of hbs) { h.branches.forEach((b) => { if (b.alias !== alias) dim(b.path); }); if (!h.branches.some((b) => b.alias === alias)) dim(h.g); }
   }
 }
 
-// ---------- detail panel ----------
-function select(kind, id) { selected = { kind, id }; traced = null; renderDetail(); applyHighlight(); }
+// ---------- details ----------
+function select(kind, id) { selected = { kind, id }; yardTrace = null; renderYardAside(); applyHighlight(yardReg, selected, null); }
 
 function dl(pairs) {
   const d = el("dl");
@@ -501,37 +683,71 @@ function pills(items, cls = "") {
   return f;
 }
 function para(...children) { const p = el("p"); p.append(...children); return p; }
+function span(...children) { const s = el("span"); s.append(...children); return s; }
 
-function renderDetail() {
+function exists(kind, id) {
+  switch (kind) {
+    case "source": return flows.sources.some((x) => x.name === id);
+    case "rule": return flows.routes.some((x) => x.name === id);
+    case "heartbeat": return flows.heartbeats.some((x) => x.name === id);
+    case "destination": return flows.destinations.some((x) => x.alias === id);
+    case "target": return flows.targets.some((x) => x.target === id) || flows.destinations.some((x) => x.target === id);
+  }
+  return true;
+}
+
+function renderYardAside() {
   const a = $("#detail");
   a.textContent = "";
-  if (!selected || !flows) return;
-  const { kind, id } = selected, st = flows.stats;
-  if (kind === "audit") {
-    renderAuditDetail(a);
-  } else if (kind === "source") {
+  if (yardTrace) {
+    a.append(el("h2", {}, "Path of an audit entry"), el("p", { class: "kind" }, `From ${yardTrace.source}, ${new Date(yardTrace.time).toLocaleString()}`));
+    const bar = el("div", { class: "actions" });
+    bar.append(el("a", { href: "#/audit/" + encodeURIComponent(yardTrace.auditId) }, "Back to the entry"));
+    const clear = el("button", { class: "ghost small", type: "button" }, "Clear");
+    clear.addEventListener("click", () => { yardTrace = null; renderYardAside(); applyHighlight(yardReg, selected, null); });
+    bar.append(clear);
+    a.append(bar);
+    return;
+  }
+  if (!selected || !exists(selected.kind, selected.id)) {
+    a.append(el("h2", {}, "Pick something"),
+      el("p", { class: "kind" }, "Select a source, rule, heartbeat or destination in the yard to see how it is wired. Each has its own page with a graph of only its connections."));
+    return;
+  }
+  renderDetail(a, selected.kind, selected.id, false);
+}
+
+function renderDetail(a, kind, id, onPage) {
+  const st = flows.stats;
+  const openLink = () => { if (!onPage && PAGES.includes(kind)) { const p = el("p", { class: "open" }); p.append(link(kind, id, "Open its page →")); a.append(p); } };
+  if (kind === "source") {
     const s = flows.sources.find((x) => x.name === id);
     const info = flows.kinds.find((k) => k.kind === s.kind) || {};
     const rules = flows.routes.filter((r) => sourceMatches(r, id));
     const ss = st.sources[id];
     a.append(el("h2", {}, id), el("p", { class: "kind" }, `Source of kind ${s.kind}`));
+    openLink();
     a.append(dl([
       ["Endpoint", el("code", {}, "POST " + s.endpoint)],
       ["Token", s.auth === "own" ? "its own token" : "the shared token of \"*\""],
       ["Received", ss ? `${ss.received}, last ${ago(ss.lastSeen)}` : "nothing on this node yet"],
       ["Decoder", info.description],
     ]));
-    a.append(el("h3", {}, "Rules that can catch it, in order"), para(pills(rules.map((r) => `${r.index + 1} ${r.name}`))));
+    a.append(el("h3", {}, "Rules that can catch it, in order"), rules.length ? para(rulePills(rules)) : el("p", { class: "muted" }, "None, everything from here ends at \"No rule matched\"."));
     const hb = flows.heartbeats.filter((h) => h.source === id);
-    if (hb.length) a.append(el("h3", {}, "Heartbeats"), para(pills(hb.map((h) => h.name), "trace")));
+    if (hb.length) a.append(el("h3", {}, "Heartbeats"), para(linkPills("heartbeat", hb.map((h) => [h.name, h.name]), "trace")));
+    const auditLink = el("a", { href: "#/audit" }, "Its audit log entries");
+    auditLink.addEventListener("click", () => { $("#a-source").value = id; });
+    a.append(para(auditLink));
     a.append(el("h3", {}, "Send a test"));
     a.append(el("pre", {}, `curl -H "Authorization: Bearer $TOKEN" \\\n  -d '{"title":"Hello","message":"from ${id}"}' \\\n  https://your-host${s.endpoint}`));
   } else if (kind === "rule") {
     const r = flows.routes.find((x) => x.name === id);
     const rs = st.routes[id];
     a.append(el("h2", {}, r.name), el("p", { class: "kind" }, `Rule ${r.index + 1} of ${flows.routes.length}`));
+    openLink();
     a.append(dl([
-      ["Does", r.drop ? "drops the event" : "sends to " + (r.to || []).map((t) => `${t} (${destVia(t)})`).join(", ")],
+      ["Does", r.drop ? "drops the event" : span("sends to ", links("destination", r.to || [], (t) => `${t} (${destVia(t)})`))],
       ["How", r.drop ? "" : (r.loud ? "loud, phones notify" : "quiet, no push") + `, priority ${r.priority}`],
       ["Digest", r.digest ? `collected, one summary per destination every ${pretty(r.digest)}` : ""],
       ["Mentions", (r.mention || []).join(", ")],
@@ -541,6 +757,14 @@ function renderDetail() {
       ["Delivered", rs && !r.drop ? `${rs.delivered}${rs.failed ? `, ${rs.failed} failed` : ""}` : ""],
       ["Last error", rs && rs.lastError ? rs.lastError : ""],
     ]));
+    const near = [flows.routes[r.index - 1], flows.routes[r.index + 1]];
+    if (onPage && (near[0] || near[1])) {
+      const p = el("p", { class: "muted" });
+      if (near[0]) p.append("Before it: ", link("rule", near[0].name));
+      if (near[0] && near[1]) p.append(" · ");
+      if (near[1]) p.append("After it: ", link("rule", near[1].name));
+      a.append(p);
+    }
     a.append(el("h3", {}, "Matches when"));
     const conds = [];
     if (r.source) conds.push(["source", r.source]);
@@ -559,12 +783,15 @@ function renderDetail() {
   } else if (kind === "heartbeat") {
     const h = flows.heartbeats.find((x) => x.name === id);
     a.append(el("h2", {}, h.name), el("p", { class: "kind" }, "Heartbeat"));
+    openLink();
+    const listens = h.source ? span(exists("source", h.source) ? link("source", h.source) : h.source,
+      Object.keys(h.labels || {}).length ? " with " + Object.entries(h.labels).map(([k, v]) => `${k}=${v}`).join(", ") : "") : "";
     a.append(dl([
-      ["Listens for", h.source ? `${h.source}${Object.keys(h.labels || {}).length ? " with " + Object.entries(h.labels).map(([k, v]) => `${k}=${v}`).join(", ") : ""}` : ""],
+      ["Listens for", listens],
       ["Ping URL", h.ping ? el("code", {}, `/ping/${h.name}?token=…`) : ""],
       ["On failure", h.ping ? el("code", {}, `/ping/${h.name}/fail`) : ""],
       ["Alerts after", pretty(h.timeout) + " of silence"],
-      ["Sends to", h.to.join(", ")],
+      ["Sends to", links("destination", h.to)],
       ["Last heartbeat", ago(h.lastSeen)],
       ["State", h.failed ? "reported a failure, alert sent" : h.missing ? "missing, alert sent" : "healthy"],
       ["Raised by", flows.cluster.enabled ? `the leader, currently ${flows.cluster.leader}` : "this node"],
@@ -576,29 +803,98 @@ function renderDetail() {
     const ds = st.destinations[id];
     const siblings = flows.targets.filter((x) => x.target === d.target).length;
     a.append(el("h2", {}, id), el("p", { class: "kind" }, `Destination in ${d.type} target ${d.target}`));
+    openLink();
     a.append(dl([
+      ["Target", link("target", d.target, `${d.target} (${d.type})`)],
       ["Address", d.address ? el("code", {}, d.address) : "none, the target decides"],
       ["Account", siblings > 1 || d.account !== "default" ? `${d.account} (one of ${siblings} in ${d.target})` : ""],
       ["Sends", t.ready ? "ready" : "not ready yet"],
       ["Problems", (t.problems || []).length ? t.problems.join("; ") : ""],
       ["Sent", ds ? `${ds.delivered}, last ${ago(ds.lastSent)}` : "nothing from this node yet"],
       ["Failed", ds && ds.failed ? String(ds.failed) : ""],
-      ["If it fails", (d.fallback || []).length ? "falls back to " + d.fallback.join(", ") : "no fallback, the failure is logged"],
+      ["If it fails", (d.fallback || []).length ? span("falls back to ", links("destination", d.fallback)) : "no fallback, the failure is logged"],
     ]));
     const backs = flows.destinations.filter((x) => (x.fallback || []).includes(id)).map((x) => x.alias);
-    if (backs.length) a.append(el("p", { class: "muted" }, `Stands in for ${backs.join(", ")} when that fails.`));
+    if (backs.length) { const p = el("p", { class: "muted" }); p.append("Stands in for ", links("destination", backs), " when that fails."); a.append(p); }
     const rules = flows.routes.filter((x) => (x.to || []).includes(id));
-    a.append(el("h3", {}, "Fed by"), para(pills(rules.map((x) => `${x.index + 1} ${x.name}`), "go"), pills(flows.heartbeats.filter((h) => h.to.includes(id)).map((h) => h.name), "trace")));
+    const hbs = flows.heartbeats.filter((h) => h.to.includes(id));
+    a.append(el("h3", {}, "Fed by"), rules.length || hbs.length ? para(rulePills(rules, "go"), linkPills("heartbeat", hbs.map((h) => [h.name, h.name]), "trace")) : el("p", { class: "muted" }, "Nothing routes here."));
+  } else if (kind === "target") {
+    const accts = flows.targets.filter((x) => x.target === id);
+    const dests = flows.destinations.filter((d) => d.target === id);
+    const type = (accts[0] || dests[0] || {}).type || "";
+    let sent = 0, failed = 0;
+    dests.forEach((d) => { const s = st.destinations[d.alias]; if (s) { sent += s.delivered; failed += s.failed; } });
+    a.append(el("h2", {}, id), el("p", { class: "kind" }, `Target of type ${type}`));
+    a.append(dl([
+      ["Sent", `${sent} from this node${failed ? `, ${failed} failed` : ""}`],
+      ["Accounts", String(accts.length)],
+    ]));
+    a.append(el("h3", {}, "Accounts"));
+    if (!accts.length) a.append(el("p", { class: "muted" }, "None reported."));
+    for (const t of accts) {
+      const p = el("p");
+      p.append(el("span", { class: "pill " + (t.ready ? "go" : "stop") }, t.ready ? "ready" : "not ready"), el("b", { class: "sign" }, t.account));
+      if ((t.problems || []).length) p.append(el("div", { class: "why" }, t.problems.join("; ")));
+      a.append(p);
+    }
+    a.append(el("h3", {}, "Destinations"), dests.length
+      ? para(linkPills("destination", dests.map((d) => [d.alias, d.account && d.account !== "default" ? `${d.alias} as ${d.account}` : d.alias]), "go"))
+      : el("p", { class: "muted" }, "No destination uses this target."));
   } else if (kind === "dropped") {
     a.append(el("h2", {}, "Dropped"), el("p", { class: "kind" }, "Events swallowed on purpose"));
-    a.append(para(pills(flows.routes.filter((r) => r.drop).map((r) => `${r.index + 1} ${r.name}`), "stop")));
+    a.append(para(rulePills(flows.routes.filter((r) => r.drop), "stop")));
   } else if (kind === "unmatched") {
     a.append(el("h2", {}, "No rule matched"), el("p", { class: "kind" }, "End of the line"));
     a.append(el("p", {}, "Events that pass every rule without a match end here and are not sent anywhere. Add a catch-all rule at the bottom if nothing should get lost."));
   }
 }
 
-// ---------- header and events ----------
+// ---------- pages ----------
+function renderPage(kind, id, full) {
+  const crumbs = $("#crumbs");
+  crumbs.textContent = "";
+  crumbs.append(el("a", { href: "#/" }, "Yard"), " / ", KIND_WORD[kind] + " ", el("b", {}, id));
+  document.title = `${KIND_WORD[kind]} ${id} · stellwerk`;
+  const a = $("#page-detail");
+  if (!exists(kind, id)) {
+    $("#focus-wrap").hidden = true;
+    $("#page-note").hidden = true;
+    a.textContent = "";
+    a.append(el("h2", {}, "Not here"), el("p", { class: "kind" }, `There is no ${kind} named ${id} in the running configuration. It may have been renamed by a reload.`), para(el("a", { href: "#/" }, "Back to the yard")));
+    return;
+  }
+  $("#focus-wrap").hidden = false;
+  $("#page-note").hidden = false;
+  pageReg = drawYard($("#focus"), focusView(kind, id), (k, i) => {
+    pageSel = k === kind && i === id ? null : { kind: k, id: i };
+    renderPageAside(kind, id);
+    pageHighlight(kind, id);
+  });
+  pageHighlight(kind, id);
+  if (full) renderPageAside(kind, id);
+}
+
+function pageHighlight(kind, id) {
+  applyHighlight(pageReg, pageSel || (kind === "target" ? null : { kind, id }), null);
+  if (!pageSel && kind === "target") Object.values(pageReg.dest).forEach((d) => d.g.classList.add("selected"));
+}
+
+// The page's own subject, or what was clicked in its graph with a way back.
+function renderPageAside(kind, id) {
+  const a = $("#page-detail");
+  a.textContent = "";
+  if (pageSel && exists(pageSel.kind, pageSel.id)) {
+    const back = el("button", { class: "ghost small back", type: "button" }, `← ${KIND_WORD[kind]} ${id}`);
+    back.addEventListener("click", () => { pageSel = null; renderPageAside(kind, id); pageHighlight(kind, id); });
+    a.append(back);
+    renderDetail(a, pageSel.kind, pageSel.id, false);
+  } else {
+    renderDetail(a, kind, id, true);
+  }
+}
+
+// ---------- header ----------
 function renderNodes() {
   const box = $("#nodes");
   box.textContent = "";
@@ -612,6 +908,9 @@ function renderNodes() {
     box.append(s);
   }
 }
+
+function showBanner(text) { $("#banner-text").textContent = text; $("#banner").hidden = false; }
+$("#banner-close").addEventListener("click", () => { $("#banner").hidden = true; });
 
 // ---------- audit log ----------
 const verdictWords = { delivered: "delivered", fallback: "delivered via fallback", silenced: "silenced", pending: "sending", failed: "failed", dropped: "dropped", unmatched: "no rule matched",
@@ -649,8 +948,9 @@ async function loadAudit() {
       "Nothing received since this node started. Point a sender at /in/<source>, every message will show up here.");
     return;
   }
+  const open = route.view === "audit" ? route.id : "";
   for (const e of res.entries) {
-    const tr = el("tr", { tabindex: 0, class: selected && selected.kind === "audit" && selected.id === e.id ? "sel" : "" });
+    const tr = el("tr", { tabindex: 0, class: open === e.id ? "sel" : "" });
     tr.append(el("td", { class: "time" }, new Date(e.time).toLocaleTimeString()));
     tr.append(el("td", {}, e.source + (e.status ? ` (${e.status})` : "")));
     const o = el("td");
@@ -662,30 +962,45 @@ async function loadAudit() {
     const to = el("td");
     for (const d of e.destinations || []) to.append(el("span", { class: "pill " + (statusPill[d.status] || "") }, d.name + (d.attempts > 1 ? ` ×${d.attempts}` : "")));
     tr.append(to);
-    tr.addEventListener("click", () => openAudit(e.id));
-    tr.addEventListener("keydown", (ev) => { if (ev.key === "Enter") openAudit(e.id); });
+    const go = () => { location.hash = "#/audit/" + encodeURIComponent(e.id); };
+    tr.addEventListener("click", go);
+    tr.addEventListener("keydown", (ev) => { if (ev.key === "Enter") go(); });
     body.append(tr);
   }
 }
 
 async function openAudit(id) {
+  const a = $("#audit-detail");
+  if (!id) {
+    auditEntry = null;
+    a.textContent = "";
+    a.append(el("h2", {}, "Pick an entry"), el("p", { class: "kind" }, "Click a row to see the whole story: the payload, what each rule decided and every send attempt."));
+    return;
+  }
   const r = await fetch("api/audit/" + encodeURIComponent(id), { cache: "no-store" });
-  if (!r.ok) { auditEntry = { missing: id }; selected = { kind: "audit", id }; traced = null; renderDetail(); return; }
-  const e = await r.json();
-  auditEntry = e;
-  selected = { kind: "audit", id };
-  // light up the path this message took
-  const routed = e.trace && e.trace.length;
-  traced = routed || e.heartbeat ? { source: e.source, events: [{
-    trace: e.trace || [], droppedBy: e.droppedBy || "",
-    heartbeat: e.verdict === "heartbeat" ? e.heartbeat : "",
-    deliveries: (e.deliveries || []).map((d) => ({ destination: d.destination })),
-  }] } : null;
-  renderDetail();
-  applyHighlight();
+  auditEntry = r.ok ? await r.json() : { missing: id };
+  if (route.view !== "audit" || route.id !== id) return; // moved on meanwhile
+  a.textContent = "";
+  renderAuditDetail(a);
   document.querySelectorAll("#audit-body tr").forEach((tr) => tr.classList.remove("sel"));
-  $("#detail").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+  if (matchMedia("(max-width: 1100px)").matches) a.scrollIntoView({ behavior: motion(), block: "start" }); // stacked below the table
   loadAudit();
+}
+
+function traceList(trace) {
+  const ol = el("ol", { class: "trace" });
+  for (const t of trace) {
+    const li = el("li", { class: t.matched ? "hit" : "" });
+    const div = el("div");
+    div.append(exists("rule", t.route) ? link("rule", t.route, t.route, "sign") : el("span", { class: "sign" }, t.route), " ");
+    if (t.action === "deliver") div.append(pills(["sends"], "go"));
+    else if (t.action === "drop") div.append(pills(["drops"], "stop"));
+    else if (t.action === "skipped") div.append(el("div", { class: "why" }, "skipped, an earlier rule already handled it"));
+    if (t.reason) div.append(el("div", { class: "why" }, t.reason));
+    li.append(div);
+    ol.append(li);
+  }
+  return ol;
 }
 
 function renderAuditDetail(a) {
@@ -696,15 +1011,29 @@ function renderAuditDetail(a) {
   }
   a.append(el("h2", {}, `${e.source}: ${verdictWords[e.verdict] || e.verdict}`),
     el("p", { class: "kind" }, `${new Date(e.time).toLocaleString()}${e.node ? " on node " + e.node : ""}`));
+  const routed = (e.trace && e.trace.length) || e.verdict === "heartbeat";
+  if (routed) {
+    const show = el("a", { href: "#/" }, "Light up its path in the yard →");
+    show.addEventListener("click", () => {
+      selected = null;
+      yardTrace = { source: e.source, time: e.time, auditId: e.id, events: [{
+        trace: e.trace || [], droppedBy: e.droppedBy || "",
+        heartbeat: e.verdict === "heartbeat" ? e.heartbeat : "",
+        deliveries: (e.deliveries || []).map((d) => ({ destination: d.destination })),
+      }] };
+    });
+    const p = el("p", { class: "open" }); p.append(show); a.append(p);
+  }
   const labels = Object.entries(e.labels || {}).map(([k, v]) => `${k}=${v}`);
   const lab = el("span"); lab.append(pills(labels));
   a.append(dl([
     ["Verdict", verdictWords[e.verdict] || e.verdict],
     ["Why", e.reason || ""],
-    ["Repeats", e.resentFrom ? el("code", {}, e.resentFrom) : ""],
+    ["Repeats", e.resentFrom ? el("a", { href: "#/audit/" + encodeURIComponent(e.resentFrom) }, e.resentFrom) : ""],
+    ["Source", exists("source", e.source) ? link("source", e.source) : e.source],
     ["Kind", e.kind || ""],
     ["Status", e.status || ""],
-    ["Heartbeat", e.heartbeat || ""],
+    ["Heartbeat", e.heartbeat ? (exists("heartbeat", e.heartbeat) ? link("heartbeat", e.heartbeat) : e.heartbeat) : ""],
     ["Labels", labels.length ? lab : ""],
     ["Entry", el("code", {}, e.id)],
   ]));
@@ -717,22 +1046,7 @@ function renderAuditDetail(a) {
   } else {
     a.append(el("p", { class: "muted" }, e.kind === "heartbeat-alert" ? "Sent by stellwerk itself." : "Not kept (audit.payload is off, or the body was empty)."));
   }
-  if (e.trace && e.trace.length) {
-    a.append(el("h3", {}, "What the rules decided"));
-    const ol = el("ol", { class: "trace" });
-    for (const t of e.trace) {
-      const li = el("li", { class: t.matched ? "hit" : "" });
-      const div = el("div");
-      div.append(el("span", { class: "sign" }, t.route + " "));
-      if (t.action === "deliver") div.append(pills(["sends"], "go"));
-      else if (t.action === "drop") div.append(pills(["drops"], "stop"));
-      else if (t.action === "skipped") div.append(el("div", { class: "why" }, "skipped, an earlier rule already handled it"));
-      if (t.reason) div.append(el("div", { class: "why" }, t.reason));
-      li.append(div);
-      ol.append(li);
-    }
-    a.append(ol);
-  }
+  if (e.trace && e.trace.length) a.append(el("h3", {}, "What the rules decided"), traceList(e.trace));
   if (e.deliveries && e.deliveries.length) {
     a.append(el("h3", {}, "Sent"));
     if (flows.actions && e.verdict !== "pending") {
@@ -743,7 +1057,7 @@ function renderAuditDetail(a) {
         if (!res.ok) { msg.textContent = res.text; return; }
         const { id } = JSON.parse(res.text);
         msg.textContent = "Sent again as a new entry.";
-        setTimeout(() => openAudit(id), 400);
+        setTimeout(() => { location.hash = "#/audit/" + encodeURIComponent(id); }, 400);
       };
       const all = el("button", { class: "ghost small", type: "button" }, "Send again");
       all.addEventListener("click", again(false));
@@ -760,7 +1074,8 @@ function renderAuditDetail(a) {
       const b = el("div", { class: "bubble" + (d.loud ? " loud" : "") });
       const meta = el("div", { class: "meta" });
       const via = d.fallbackFor !== undefined ? `fallback for ${e.deliveries[d.fallbackFor].destination}` : `via ${d.route}`;
-      meta.append(el("b", {}, d.destination), document.createTextNode(` (${d.endpoint.replace(/\/default$/, "")}) ${via} `),
+      const name = el("b"); name.append(exists("destination", d.destination) ? link("destination", d.destination) : d.destination);
+      meta.append(name, document.createTextNode(` (${d.endpoint.replace(/\/default$/, "")}) ${via} `),
         el("span", { class: "pill " + (statusPill[d.status] || "") }, d.status === "pending" ? (d.digest ? `in the ${pretty(d.digest)} digest` : "sending") : d.status));
       const msg = el("div", { class: "msg" });
       msg.innerHTML = d.html; // rendered server-side from Markdown with raw HTML disabled
@@ -791,7 +1106,7 @@ function fillSourceFilter() {
   sel.value = keep;
 }
 
-// ---------- simulate ----------
+// ---------- try a payload ----------
 const extraSamples = {
   "Sonarr download": { source: "sonarr", query: "", body: JSON.stringify({ eventType: "Download", series: { title: "Severance" }, episodes: [{ seasonNumber: 2, episodeNumber: 3, title: "Who Is Alive?" }] }, null, 2) },
   "k8s warning": { source: "k8s-events", query: "", body: JSON.stringify({ type: "Warning", reason: "BackOff", message: "Back-off restarting failed container", count: 4, involvedObject: { namespace: "media", name: "sonarr-0" } }, null, 2) },
@@ -819,10 +1134,37 @@ function buildSamples() {
   if (first) { $("#t-source").value = first.source; $("#t-body").value = first.body; }
 }
 
+function drawTraceGraph() {
+  const box = $("#trace-graph");
+  box.hidden = !lastTrace;
+  if (!lastTrace) return;
+  traceReg = drawYard($("#trace-yard"), focusView("source", lastTrace.source), (k, i) => {
+    traceSel = { kind: k, id: i };
+    renderTraceSide();
+    applyHighlight(traceReg, traceSel, lastTrace);
+  });
+  applyHighlight(traceReg, traceSel, lastTrace);
+}
+
+// The result, or the details of what was clicked in the path.
+function renderTraceSide() {
+  const d = $("#trace-detail");
+  $("#result-body").hidden = !!traceSel;
+  d.hidden = !traceSel;
+  d.textContent = "";
+  if (!traceSel) return;
+  const back = el("button", { class: "ghost small back", type: "button" }, "← Back to the result");
+  back.addEventListener("click", () => { traceSel = null; renderTraceSide(); applyHighlight(traceReg, null, lastTrace); });
+  d.append(back);
+  renderDetail(d, traceSel.kind, traceSel.id, false);
+}
+
 $("#try").addEventListener("submit", async (e) => {
   e.preventDefault();
   const req = { source: $("#t-source").value.trim(), query: $("#t-query").value.trim(), body: $("#t-body").value };
-  const box = $("#result");
+  traceSel = null;
+  renderTraceSide();
+  const box = $("#result-body");
   box.textContent = "";
   box.append(el("h2", {}, "Result"));
   let res;
@@ -834,19 +1176,15 @@ $("#try").addEventListener("submit", async (e) => {
     return;
   }
   $("#t-kind").textContent = res.kind ? `Decoded as ${res.kind}. Nothing is sent.` : "Nothing is sent.";
-  if (res.error) { box.append(el("p", { class: "error" }, res.error)); traced = null; applyHighlight(); return; }
-  traced = { ...res, source: req.source };
-  const lastEv = res.events[res.events.length - 1];
-  const handled = lastEv && lastEv.trace.filter((t) => t.matched).pop();
-  selected = lastEv && lastEv.heartbeat ? { kind: "heartbeat", id: lastEv.heartbeat } : handled ? { kind: "rule", id: handled.route } : { kind: "unmatched", id: "unmatched" };
-  renderDetail();
-  applyHighlight();
-  $("#yard-wrap").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+  if (res.error) { box.append(el("p", { class: "error" }, res.error)); lastTrace = null; drawTraceGraph(); return; }
+  lastTrace = { ...res, source: req.source };
+  drawTraceGraph();
+  $("#trace-graph").scrollIntoView({ behavior: motion(), block: "nearest" });
 
   if (!res.events.length) box.append(el("p", {}, "The decoder produced no events."));
   res.events.forEach((ev, n) => {
     if (res.events.length > 1) box.append(el("h3", { class: "evt-h" }, `Event ${n + 1} of ${res.events.length}${ev.status ? ", " + ev.status : ""}`));
-    if (ev.heartbeat) { box.append(el("p", {}, `This is heartbeat ${ev.heartbeat}. It resets the timer and is not sent anywhere.`)); return; }
+    if (ev.heartbeat) { box.append(para("This is heartbeat ", link("heartbeat", ev.heartbeat), ". It resets the timer and is not sent anywhere.")); return; }
     const count = ev.deliveries.length, msgs = `${count} message${count > 1 ? "s" : ""}`;
     const summary = count && ev.silenced ? `Would send ${msgs}, but they are muted: ${ev.silenced}.`
       : count ? `Sends ${msgs}.`
@@ -855,26 +1193,14 @@ $("#try").addEventListener("submit", async (e) => {
     for (const d of ev.deliveries) {
       const b = el("div", { class: "bubble" + (d.loud ? " loud" : "") });
       const meta = el("div", { class: "meta" });
-      meta.append(el("b", {}, d.destination), document.createTextNode(` (${d.endpoint.replace(/\/default$/, "")}) via ${d.route}, ${d.loud ? "loud" : "quiet"}`));
+      const name = el("b"); name.append(link("destination", d.destination));
+      meta.append(name, document.createTextNode(` (${d.endpoint.replace(/\/default$/, "")}) via ${d.route}, ${d.loud ? "loud" : "quiet"}`));
       const msg = el("div", { class: "msg" });
       msg.innerHTML = d.html; // rendered server-side from Markdown with raw HTML disabled
       b.append(meta, msg);
       box.append(b);
     }
-    box.append(el("h3", { class: "sign" }, "Rule by rule"));
-    const ol = el("ol", { class: "trace" });
-    for (const t of ev.trace) {
-      const li = el("li", { class: t.matched ? "hit" : "" });
-      const div = el("div");
-      div.append(el("span", { class: "sign" }, t.route + " "));
-      if (t.action === "deliver") div.append(pills(["sends"], "go"));
-      else if (t.action === "drop") div.append(pills(["drops"], "stop"));
-      else if (t.action === "skipped") div.append(el("div", { class: "why" }, "skipped, an earlier rule already handled it"));
-      if (t.reason) div.append(el("div", { class: "why" }, t.reason));
-      li.append(div);
-      ol.append(li);
-    }
-    box.append(ol);
+    box.append(el("h3", { class: "sign" }, "Rule by rule"), traceList(ev.trace));
   });
 });
 
@@ -886,8 +1212,11 @@ async function act(method, url, body) {
 }
 
 function renderSilences() {
-  $("#silences").hidden = !flows.actions;
+  $("#tab-silences").hidden = !flows.actions;
+  $("#s-on").hidden = !flows.actions;
+  $("#s-off").hidden = flows.actions;
   $("#reload").hidden = !flows.actions;
+  $("#silence-count").textContent = flows.silences.length || "";
   const body = $("#silence-body");
   body.textContent = "";
   if (!flows.silences.length) { emptyRow(body, "Nothing is muted."); return; }
@@ -936,15 +1265,46 @@ $("#canary").addEventListener("click", async () => {
 $("#reload").addEventListener("click", async () => {
   const res = await act("POST", "api/reload");
   $("#live-text").textContent = res.ok ? "Reloaded" : "Reload failed";
-  if (!res.ok) alertBox(res.text);
+  if (res.ok) $("#banner").hidden = true;
+  else showBanner("Reload failed, the running configuration was kept.\n" + res.text);
   refresh();
 });
 
-function alertBox(text) {
-  const d = $("#detail");
-  d.textContent = "";
-  d.append(el("h2", {}, "Reload failed"), el("p", {}, text), el("p", { class: "kind" }, "The running configuration was kept."));
+// ---------- views ----------
+// render shows the view the URL names. full also rebuilds its side panel,
+// which a plain refresh leaves alone so it does not jump while being read.
+function render(full) {
+  if (!flows) return;
+  const { view, id } = route;
+  const tab = PAGES.includes(view) ? "yard" : view;
+  document.querySelectorAll("nav.tabs a").forEach((a) => (a.dataset.tab === tab ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  const section = "v-" + (PAGES.includes(view) ? "page" : view);
+  document.querySelectorAll("main > .view").forEach((v) => (v.hidden = v.id !== section));
+  if (!PAGES.includes(view)) document.title = { yard: "stellwerk", trace: "Try a payload · stellwerk", audit: "Audit log · stellwerk", silences: "Silences · stellwerk" }[view];
+  if (view === "yard") {
+    yardReg = drawYard($("#yard"), fullView(), select);
+    applyHighlight(yardReg, selected, yardTrace);
+    if (full) renderYardAside();
+  } else if (PAGES.includes(view)) {
+    renderPage(view, id, full);
+  } else if (view === "trace") {
+    drawTraceGraph();
+    if (full) renderTraceSide();
+  } else if (view === "audit") {
+    loadAudit();
+    if (full) openAudit(id);
+  }
 }
+
+window.addEventListener("hashchange", () => {
+  const before = route;
+  route = parseHash();
+  if (before.view !== route.view || before.id !== route.id) pageSel = null;
+  if (before.view !== route.view) traceSel = null;
+  render(true);
+  const sameTab = before.view === route.view && (route.view === "audit" || route.view === "yard");
+  if (!sameTab) window.scrollTo({ top: 0, behavior: "auto" });
+});
 
 // ---------- data ----------
 async function refresh() {
@@ -952,7 +1312,7 @@ async function refresh() {
     const r = await fetch("api/flows", { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
     const data = await r.json();
-    const shapeChanged = !flows || JSON.stringify([data.sources, data.routes, data.destinations]) !== JSON.stringify([flows.sources, flows.routes, flows.destinations]);
+    const shapeChanged = !flows || JSON.stringify([data.sources, data.routes, data.destinations, data.targets]) !== JSON.stringify([flows.sources, flows.routes, flows.destinations, flows.targets]);
     flows = data;
     $("#c-src").textContent = data.sources.length;
     $("#c-rules").textContent = data.routes.length;
@@ -965,15 +1325,16 @@ async function refresh() {
     fillSourceFilter();
     renderSilences();
     renderCanary();
-    drawYard();
-    if (selected && !traced && shapeChanged && selected.kind !== "audit") renderDetail();
-    loadAudit();
+    render(shapeChanged && route.view !== "audit");
     $("#live").classList.remove("stale"); $("#live-text").textContent = "Live";
   } catch (e) {
     $("#live").classList.add("stale"); $("#live-text").textContent = "Disconnected";
   }
 }
-refresh();
+const legend = $("#legend-tpl").content;
+document.querySelectorAll(".legend-slot").forEach((s) => s.append(legend.cloneNode(true)));
+route = parseHash();
+refresh().then(() => { if (route.view === "audit") openAudit(route.id); });
 setInterval(refresh, 5000);
 </script>
 </body>
