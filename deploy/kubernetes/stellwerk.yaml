@@ -97,7 +97,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: stellwerk
-          image: ghcr.io/johnnycube/stellwerk:0.1.2
+          image: ghcr.io/johnnycube/stellwerk:0.1.3
           env:
             - name: STELLWERK_CONFIG_DIR
               value: /etc/stellwerk/config,/etc/stellwerk/secrets
