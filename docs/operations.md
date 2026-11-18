@@ -109,7 +109,7 @@ With HA off, the `/cluster/` API does not exist. Built with `-tags noha`, the bi
 
 Every received message gets an entry: when it came in, from which source, its labels and payload, what each rule decided and why, and for every destination each send attempt with its error, until it is sent or given up. Requests turned away before routing (bad payload, rate limit, full queue) are in it too, with the reason. Requests with a wrong token are not, since anyone could flood the log with them. Heartbeat alerts that stellwerk sends itself have entries as well.
 
-The **Audit log** section of the UI lists the entries with filters for source, verdict and text (payload, labels, reasons, errors). Clicking one shows the whole story and lights up its path in the yard. `GET /api/audit` and `GET /api/audit/{id}` on the UI listener return the same as JSON.
+The **Audit log** section of the UI lists the entries with filters for source, verdict and text (payload, labels, reasons, errors). Clicking one shows the whole story, and a link lights up its path in the yard. Each entry has its own URL (`#/audit/<id>`). `GET /api/audit` and `GET /api/audit/{id}` on the UI listener return the same as JSON.
 
 ```yaml
 audit:
@@ -131,4 +131,6 @@ A source can be limited per name: `sources.sonarr.rate_limit: 60/m` (also `/s`, 
 
 ## Dataflow UI
 
-Open `http://127.0.0.1:8081` (`ssh -L 8081:127.0.0.1:8081 host`). Sources run into one main line, each rule is a switch branching off to its destinations, drop rules end in a red buffer stop, heartbeats sit on top. Destinations show which account sends. With HA on, the header shows the nodes and the leader. **Try a payload** shows the path a body takes, why each rule did or did not match, and the message each destination would get. Nothing is sent.
+Open `http://127.0.0.1:8081` (`ssh -L 8081:127.0.0.1:8081 host`). Sources run into one main line, each rule is a switch branching off to its destinations, drop rules end in a red buffer stop, heartbeats sit on top. Destinations show which account sends. A legend under the graph explains the lines and markers. With HA on, the header shows the nodes and the leader.
+
+Tabs at the top split the UI: **Yard** (the whole dataflow), **Try a payload**, **Audit log** and **Silences**. Every source, rule, heartbeat, destination and target has its own page (`#/rule/<name>`, `#/source/<name>`, `#/destination/<name>`, `#/target/<name>`, `#/heartbeat/<name>`) with a graph of only its connections. Clicking anything in a graph shows its details in the side panel, the ↗ icon next to its name opens its page. **Try a payload** shows the path a body takes, why each rule did or did not match, and the message each destination would get. Nothing is sent.
