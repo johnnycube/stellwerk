@@ -6,7 +6,8 @@ require (
 	cel.dev/cel-go v0.33.2
 	github.com/mattn/go-sqlite3 v1.14.53
 	github.com/rs/zerolog v1.35.1
-	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v4 v4.0.0
 	maunium.net/go/mautrix v0.32.0
 )
 
