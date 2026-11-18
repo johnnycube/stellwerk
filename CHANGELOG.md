@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2] - 2026-11-18
+
+### Added
+
+- UI tabs for the yard, the payload tracer, the audit log and silences, each with its own URL, instead of one long page. Audit entries can be linked directly.
+- A legend under every graph for its lines and markers: dotted for dropped or unmatched, dashed for heartbeat alarms, diamonds for rules with `continue`, filled markers for loud rules.
+- Pages for every source, rule, heartbeat, destination and target with a graph of only their connections. Clicking a part of any graph shows its details in the side panel, the ↗ next to its name opens its page.
+- The payload tracer draws the path of the traced payload in its own graph.
+
 ## [0.1.1] - 2026-11-17
 
 ### Added
