@@ -3,7 +3,7 @@ module github.com/johnnycube/stellwerk
 go 1.27.4
 
 require (
-	cel.dev/cel-go v0.33.2
+	cel.dev/cel-go v0.33.4
 	github.com/mattn/go-sqlite3 v1.14.53
 	github.com/rs/zerolog v1.35.1
 	go.yaml.in/yaml/v3 v3.0.6
