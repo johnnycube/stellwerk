@@ -26,7 +26,7 @@ GREMLINS_VERSION    ?= v0.6.0
 # renovate: datasource=go depName=github.com/zricethezav/gitleaks/v8
 GITLEAKS_VERSION    ?= v8.30.1
 # renovate: datasource=go depName=github.com/fleetlint/fleetlint
-FLEETLINT_VERSION   ?= v0.11.0
+FLEETLINT_VERSION   ?= v0.11.1
 # Tools are built with this module's toolchain: golangci-lint refuses code that targets a newer Go than it was built with.
 TOOLCHAIN   := $(shell go env GOVERSION)
 
