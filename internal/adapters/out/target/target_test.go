@@ -9,7 +9,7 @@ import (
 
 	"github.com/johnnycube/stellwerk/internal/core/ports"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func node(t *testing.T, s string) *yaml.Node {

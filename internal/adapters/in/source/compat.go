@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/johnnycube/stellwerk/internal/core/domain"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // ntfy and Gotify are push services many apps can already talk to (the

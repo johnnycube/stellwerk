@@ -19,7 +19,7 @@ import (
 	"sync"
 
 	"github.com/johnnycube/stellwerk/internal/core/domain"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Input is one received request.
