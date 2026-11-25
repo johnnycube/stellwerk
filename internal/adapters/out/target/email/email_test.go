@@ -25,7 +25,7 @@ import (
 	"github.com/johnnycube/stellwerk/internal/core/domain"
 	"github.com/johnnycube/stellwerk/internal/core/ports"
 	"github.com/johnnycube/stellwerk/internal/core/ports/portstest"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // smtpServer is a small SMTP server for tests: EHLO, STARTTLS, AUTH PLAIN,

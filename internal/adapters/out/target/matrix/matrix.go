@@ -23,7 +23,7 @@ import (
 	"github.com/johnnycube/stellwerk/internal/core/ports"
 	_ "github.com/mattn/go-sqlite3" // database/sql driver for the crypto store
 	"github.com/rs/zerolog"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"

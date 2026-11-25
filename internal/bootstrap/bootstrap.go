@@ -30,7 +30,7 @@ import (
 	"github.com/johnnycube/stellwerk/internal/core/domain"
 	"github.com/johnnycube/stellwerk/internal/core/ports"
 	"github.com/johnnycube/stellwerk/internal/core/usecase"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // haFactory is set by ha_peers.go. Built with -tags noha it stays nil and

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/johnnycube/stellwerk/internal/core/ports"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Target is a sender for one account.

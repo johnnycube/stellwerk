@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/johnnycube/stellwerk/internal/core/domain"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func ce(t *testing.T, opts string) Decoder {

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/johnnycube/stellwerk/internal/core/domain"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // CloudEvents (cloudevents.io, spec 1.0) over HTTP, in all three modes:
