@@ -14,7 +14,7 @@ import (
 	"github.com/johnnycube/stellwerk/internal/adapters/out/target"
 	"github.com/johnnycube/stellwerk/internal/core/domain"
 	"github.com/johnnycube/stellwerk/internal/core/ports/portstest"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 type server struct {
