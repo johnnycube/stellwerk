@@ -8,6 +8,7 @@
   ],
   "pre-commit": { "enabled": true },
   "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "internalChecksFilter": "strict",
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
   "packageRules": [
